@@ -11,6 +11,10 @@ import os
 
 server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
+input_dir = "input/image"
+#output_dir = r"C:\Aalto\S4\Graduation\AI-Agent\Assets\Resources\VoxelTextures"
+output_tex_dir = "output/tiles"
+output_texture_sheet_dir = "output/texture_sheet"
 
 def queue_prompt(prompt):
     p = {"prompt": prompt, "client_id": client_id}
@@ -91,11 +95,12 @@ def upload_file(file, subfolder="", overwrite=False):
         print(error)
     return path
 
-def call_comfyUI(input_image = "", pprompt="", nprompt="text", denoise = 1):
+def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoise = 1):
     """
     调用ComfyUI生成图片
     Args:
         input_image: 输入图片路径
+        tex_name: 纹理名称
         pprompt: 正面提示词
         nprompt: 负面提示词
         denoise: 降噪强度 (0-1)
@@ -108,6 +113,8 @@ def call_comfyUI(input_image = "", pprompt="", nprompt="text", denoise = 1):
         return None
     
     print("开始执行图片生成流程...")
+    if tex_name == "":
+        tex_name = pprompt
     
     # 加载工作流
     print("正在加载工作流...")
@@ -168,20 +175,21 @@ def call_comfyUI(input_image = "", pprompt="", nprompt="text", denoise = 1):
     print("正在保存生成的图片...")
     saved_images = []
     for node_id in images:
-        for image_data in images[node_id]:
-            from PIL import Image
-            import io
-            image = Image.open(io.BytesIO(image_data))
-            output_dir = "output/image"
-            os.makedirs(output_dir, exist_ok=True)
-            output_path = os.path.normpath(os.path.join(output_dir, f"Texture-{node_id}-{seed}.png")).replace("\\", "/")
-            image.save(output_path)
-            saved_images.append(output_path)
-            print(f"图片已保存到: {output_path}")
+        if node_id == "75":  # 只处理node_id为75的节点
+            for image_data in images[node_id]:
+                from PIL import Image
+                import io
+                image = Image.open(io.BytesIO(image_data))
+                os.makedirs(output_tex_dir, exist_ok=True)
+                output_path = os.path.normpath(os.path.join(output_tex_dir, f"Texture-{tex_name}-{seed}.png")).replace("\\", "/")
+                image.save(output_path)
+                saved_images.append(output_path)
+                print(f"图片已保存到: {output_path}")
     
     print("所有操作完成！")
     return output_path
 
 # ---在此脚本中直接运行验证---
 if __name__ == "__main__": #只有当这个脚本是被直接运行时，下面的代码才会执行。
-    call_comfyUI("input/image/example.png", "Texture of dirt", "text, bad quality", 0.55)
+    # 生成单个贴图
+    call_comfyUI("input/image/example.png", "dirt", "Texture of dirt", "text, bad quality", 0.55)

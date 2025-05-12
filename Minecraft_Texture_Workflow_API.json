@@ -1,12 +1,12 @@
 {
   "3": {
     "inputs": {
-      "seed": 535025949452842,
+      "seed": 708866970895556,
       "steps": 20,
       "cfg": 8,
       "sampler_name": "dpmpp_sde",
       "scheduler": "karras",
-      "denoise": 0.5500000000000002,
+      "denoise": 0.8700000000000002,
       "model": [
         "52",
         0
@@ -69,7 +69,7 @@
   },
   "38": {
     "inputs": {
-      "text": "Texture of crystals",
+      "text": "Texture of wood floor\n",
       "clip": [
         "52",
         1
@@ -120,7 +120,7 @@
   },
   "54": {
     "inputs": {
-      "image": "test2.png"
+      "image": ""
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -193,17 +193,65 @@
       "title": "Canny"
     }
   },
-  "68": {
+  "71": {
+    "inputs": {
+      "action": "resize only",
+      "smaller_side": 16,
+      "larger_side": 0,
+      "scale_factor": 0,
+      "resize_mode": "reduce size only",
+      "side_ratio": "1:1",
+      "crop_pad_position": 0.5,
+      "pad_feathering": 20,
+      "pixels": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "ImageResize",
+    "_meta": {
+      "title": "Image Resize"
+    }
+  },
+  "73": {
+    "inputs": {
+      "exposure": 10,
+      "image": [
+        "71",
+        0
+      ]
+    },
+    "class_type": "LayerColor: Exposure",
+    "_meta": {
+      "title": "LayerColor: Exposure"
+    }
+  },
+  "75": {
     "inputs": {
       "filename_prefix": "Texture",
       "images": [
-        "8",
+        "76",
         0
       ]
     },
     "class_type": "SaveImage",
     "_meta": {
       "title": "Save Image"
+    }
+  },
+  "76": {
+    "inputs": {
+      "brightness": 1,
+      "contrast": 1.2000000000000002,
+      "saturation": 1.0000000000000002,
+      "image": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "LayerColor: BrightnessContrastV2",
+    "_meta": {
+      "title": "LayerColor: Brightness Contrast V2"
     }
   }
 }

@@ -69,6 +69,7 @@ async def ask_general(
                 texture_path = await asyncio.to_thread(
                     call_comfyUI,
                     image_path,
+                    "",
                     tex_params["pprompt"],
                     tex_params["nprompt"],
                     tex_params["denoise"]
@@ -92,6 +93,47 @@ async def ask_general(
                 response_payload["fill_db_result"] = f"写入失败: {e}"
 
     return response_payload
+
+@app.post("/generate_texture")
+async def generate_texture(
+    image_path: str = Form(...),
+    texture_name: str = Form(""),
+    positive_prompt: str = Form(...),
+    denoise_strength: float = Form(1.0),    
+):
+    """
+    单独的贴图生成接口，只处理贴图生成功能
+    
+    Parameters:
+    - image_path: 输入图片路径
+    - positive_prompt: 正面提示词
+    - negative_prompt: 负面提示词，默认为"text"
+    - denoise_strength: 降噪强度，范围0-1，默认为1.0
+    - texture_name: 纹理名称，默认为空字符串
+    
+    Returns:
+    - success: 是否成功
+    - texture_path: 成功时返回生成的贴图路径
+    - error: 失败时返回错误信息
+    """
+    try:
+        texture_path = await asyncio.to_thread(
+            call_comfyUI,
+            image_path,
+            texture_name,
+            positive_prompt,
+            "text, blurry, watermark",
+            denoise_strength
+        )
+        return {
+            "success": True,
+            "texture_path": texture_path
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"生成贴图失败: {str(e)}"
+        }
 
 # ---------- 测试接口 ----------
 
@@ -136,6 +178,7 @@ async def ask_test(
                 texture_path = await asyncio.to_thread(
                     call_comfyUI,
                     image_path,
+                    "",
                     tex_params["pprompt"],
                     tex_params["nprompt"],
                     tex_params["denoise"]
