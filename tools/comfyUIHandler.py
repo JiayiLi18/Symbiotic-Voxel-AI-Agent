@@ -12,9 +12,8 @@ import os
 server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
 input_dir = "input/image"
-#output_dir = r"C:\Aalto\S4\Graduation\AI-Agent\Assets\Resources\VoxelTextures"
-output_tex_dir = "output/tiles"
-output_texture_sheet_dir = "output/texture_sheet"
+output_tex_dir = r"C:\Aalto\S4\Graduation\AI-Agent\Assets\Resources\VoxelTextures"
+#output_tex_dir = "output/tiles"
 
 def queue_prompt(prompt):
     p = {"prompt": prompt, "client_id": client_id}
@@ -33,7 +32,7 @@ def get_history(prompt_id):
         return json.loads(response.read())
 
 def get_images(ws, prompt):
-    print("开始执行工作流")
+    print("Starting workflow execution")
     prompt_id = queue_prompt(prompt)['prompt_id']
     output_images = {}
     while True:
@@ -43,7 +42,7 @@ def get_images(ws, prompt):
             if message['type'] == 'executing':
                 data = message['data']
                 if data['node'] is None and data['prompt_id'] == prompt_id:
-                    print("工作流执行完成！")
+                    print("Workflow execution completed!")
                     break #Execution is done
         else:
             # If you want to be able to decode the binary stream for latent previews, here is how you can do it:
@@ -51,15 +50,15 @@ def get_images(ws, prompt):
             # preview_image = Image.open(bytesIO) # This is your preview in PIL image format, store it in a global
             continue #previews are binary data
 
-    print("正在获取历史记录...")
+    print("Getting history records...")
     history = get_history(prompt_id)[prompt_id]
-    print("正在下载生成的图片...")
+    print("Downloading generated images...")
     for node_id in history['outputs']:
         node_output = history['outputs'][node_id]
         images_output = []
         if 'images' in node_output:
             for image in node_output['images']:
-                print(f"正在下载图片: {image['filename']}")
+                print(f"Downloading image: {image['filename']}")
                 image_data = get_image(image['filename'], image['subfolder'], image['type'])
                 images_output.append(image_data)
         output_images[node_id] = images_output
@@ -109,38 +108,38 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
     """
     # 检查正面提示词是否为空或只有空格
     if not pprompt.strip():
-        print("错误：正面提示词不能为空！")
+        print("Error: Positive prompt cannot be empty!")
         return None
     
-    print("开始执行图片生成流程...")
-    if tex_name == "":
-        tex_name = pprompt
+    print("Starting image generation process...")
+    if not tex_name:
+        tex_name = pprompt[:20]  # 如果没有提供名称，使用提示词的前20个字符
     
     # 加载工作流
-    print("正在加载工作流...")
+    print("Loading workflow...")
     try:
         with open("Minecraft_Texture_Workflow_API.json", "r", encoding="utf-8") as f:
             workflow_data = f.read()
         workflow = json.loads(workflow_data)
     except FileNotFoundError:
-        print("错误：找不到工作流文件 Minecraft_Texture_Workflow_API.json")
+        print("Error: Workflow file Minecraft_Texture_Workflow_API.json not found")
         return None
     except json.JSONDecodeError:
-        print("错误：工作流文件格式不正确")
+        print("Error: Invalid workflow file format")
         return None
     except Exception as e:
-        print(f"错误：加载工作流时发生未知错误: {str(e)}")
+        print(f"Error: Unknown error occurred while loading workflow: {str(e)}")
         return None
     
     # 如果没有输入图片，则设置denoise为1
     if not input_image:
-        print("警告: 未提供输入图片, 将使用默认降噪强度1,controlNet strength = 0")
+        print("Warning: No input image provided, using default denoise strength 1, controlNet strength = 0")
+        #TODO: 需要修改为使用empty latent image节点
         denoise = 1
-        #
         workflow["3"]["inputs"]["strength"] = 0
     else:
         # 上传输入图片
-        print(f"正在上传输入图片: {input_image}")
+        print(f"Uploading input image: {input_image}")
         with open(input_image, "rb") as f:
             comfyui_path_image = upload_file(f, "", True)
     
@@ -151,7 +150,7 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
     # 设置随机种子
     import random
     seed = random.randint(1, 1000000000)
-    print(f"使用随机种子: {seed}")
+    print(f"Using random seed: {seed}")
     workflow["3"]["inputs"]["seed"] = seed
     
     # 设置输入图片（如果有）
@@ -162,17 +161,17 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
     workflow["3"]["inputs"]["denoise"] = denoise
     
     # 连接WebSocket并执行工作流
-    print("正在连接WebSocket...")
+    print("Connecting to WebSocket...")
     ws = websocket.WebSocket()
     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-    print("WebSocket连接成功")
+    print("WebSocket connection successful")
     
     # 获取生成的图片
     images = get_images(ws, workflow)
     ws.close()
     
     # 保存生成的图片
-    print("正在保存生成的图片...")
+    print("Saving generated images...")
     saved_images = []
     for node_id in images:
         if node_id == "75":  # 只处理node_id为75的节点
@@ -182,14 +181,15 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
                 image = Image.open(io.BytesIO(image_data))
                 os.makedirs(output_tex_dir, exist_ok=True)
                 output_path = os.path.normpath(os.path.join(output_tex_dir, f"Texture-{tex_name}-{seed}.png")).replace("\\", "/")
+                tex_name = output_path.split("/")[-1].split(".")[0]
                 image.save(output_path)
                 saved_images.append(output_path)
-                print(f"图片已保存到: {output_path}")
+                print(f"Image saved to: {output_path}")
     
-    print("所有操作完成！")
-    return output_path
+    print("All operations completed!")
+    return tex_name
 
 # ---在此脚本中直接运行验证---
 if __name__ == "__main__": #只有当这个脚本是被直接运行时，下面的代码才会执行。
     # 生成单个贴图
-    call_comfyUI("input/image/example.png", "dirt", "Texture of dirt", "text, bad quality", 0.55)
+    call_comfyUI("", "sea", "Texture of sea", "text, bad quality", 1)

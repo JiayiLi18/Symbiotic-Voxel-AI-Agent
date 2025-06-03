@@ -120,7 +120,7 @@
   },
   "54": {
     "inputs": {
-      "image": ""
+      "image": "test.png"
     },
     "class_type": "LoadImage",
     "_meta": {
