@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Tuple, Dict, Any
 
 from .comfyUIHandler import call_comfyUI
-from .fill_db import process_documents
+from .voxel_manager import VoxelManager, VoxelTypeParams
 
 def encode_image_to_data_uri(path: str) -> str:
     with open(path, "rb") as f:
@@ -17,6 +17,7 @@ def encode_image_to_data_uri(path: str) -> str:
 class ResponseHandler:
     def __init__(self):
         self.voxel_db_path = r"C:\Users\55485\AppData\LocalLow\DefaultCompany\AI-Agent\VoxelsDB\voxel_definitions.json"
+        self.voxel_manager = VoxelManager(self.voxel_db_path)
 
     async def process_response(self, query: str, response_json: str, usage: dict, image_path: Optional[str] = None) -> dict:
         """Process GPT response and execute commands"""
@@ -51,13 +52,8 @@ class ResponseHandler:
                         "voxel_id": None,
                         "voxel_name": None,
                         "texture_path": None,
-                        "error": None
-                    },
-                    "database": {
-                        "executed": False,
-                        "success": False,
-                        "section": None,
-                        "error": None
+                        "error": None,
+                        "operation": None  # 'create' or 'update'
                     }
                 }
             }
@@ -98,69 +94,58 @@ class ResponseHandler:
             try:
                 if command_type == "create_voxel_type":
                     response_payload["data"]["commands"]["voxel"]["executed"] = True
-                    # Use the texture_name we got from the previous texture generation
-                    voxel_result = await self._handle_voxel_creation(
-                        params, 
-                        texture_name
+                    # 使用VoxelManager创建voxel
+                    voxel_params = VoxelTypeParams(
+                        name=params.get("name"),
+                        description=params.get("description", ""),
+                        texture=texture_name or "",
+                        is_transparent=params.get("is_transparent", False)
                     )
-                    voxel_info = self._parse_voxel_result(voxel_result)
+                    new_voxel = self.voxel_manager.create_voxel_type(voxel_params)
                     response_payload["data"]["commands"]["voxel"].update({
                         "success": True,
-                        "voxel_id": voxel_info["id"],
-                        "voxel_name": voxel_info["name"],
-                        "texture_path": texture_name
+                        "voxel_id": new_voxel["id"],
+                        "voxel_name": new_voxel["name"],
+                        "texture_path": texture_name,
+                        "operation": "create"
                     })
-
-                elif command_type == "fill_db":
-                    response_payload["data"]["commands"]["database"]["executed"] = True
-                    section = params.get("section", "")
-                    fill_result = await self._handle_db_fill(params)
-                    response_payload["data"]["commands"]["database"].update({
-                        "success": True,
-                        "section": section
-                    })
+                elif command_type == "update_voxel_type":
+                    response_payload["data"]["commands"]["voxel"]["executed"] = True
+                    # 使用VoxelManager更新voxel
+                    voxel_name = params.get("name")
+                    voxel = self.voxel_manager.get_voxel_by_name(voxel_name)
+                    voxel_id = voxel["id"] if voxel else None
+                    
+                    if voxel_id:
+                        update_params = {}
+                        if texture_name:
+                            update_params["texture"] = texture_name
+                        if "description" in params:
+                            update_params["description"] = params["description"]
+                        if "is_transparent" in params:
+                            update_params["is_transparent"] = params["is_transparent"]
+                        
+                        updated_voxel = self.voxel_manager.update_voxel_type(voxel_id, update_params)
+                        if updated_voxel:
+                            response_payload["data"]["commands"]["voxel"].update({
+                                "success": True,
+                                "voxel_id": updated_voxel["id"],
+                                "voxel_name": updated_voxel["name"],
+                                "texture_path": texture_name,
+                                "operation": "update"
+                            })
+                        else:
+                            response_payload["data"]["commands"]["voxel"]["error"] = f"Failed to update voxel with ID {voxel_id}"
+                    else:
+                        response_payload["data"]["commands"]["voxel"]["error"] = f"Voxel with name '{voxel_name}' not found"
 
             except Exception as e:
                 error_msg = f"Error in {command_type}: {str(e)}"
                 print(f"DEBUG - {error_msg}")
-                if command_type == "create_voxel_type":
+                if command_type in ["create_voxel_type", "update_voxel_type"]:
                     response_payload["data"]["commands"]["voxel"]["error"] = error_msg
-                elif command_type == "fill_db":
-                    response_payload["data"]["commands"]["database"]["error"] = error_msg
 
         return response_payload
-
-    def _parse_voxel_result(self, result: str) -> dict:
-        """Parse voxel creation result string to extract ID and name"""
-        try:
-            # Expected format: "Successfully created voxel type: {name} (ID: {id})"
-            match = re.search(r"Successfully created voxel type: (.*?) \(ID: (\d+)\)", result)
-            if match:
-                name = match.group(1)
-                voxel_id = int(match.group(2))
-                
-                # Read the voxel from database to get complete info
-                try:
-                    with open(self.voxel_db_path, 'r') as f:
-                        voxel_db = json.load(f)
-                        for voxel in voxel_db.get("voxels", []):
-                            if voxel["id"] == voxel_id:
-                                return {
-                                    "name": name,
-                                    "id": voxel_id,
-                                    "texture": voxel.get("texture", "")
-                                }
-                except Exception as e:
-                    print(f"Warning: Could not read voxel database: {e}")
-                
-                return {
-                    "name": name,
-                    "id": voxel_id,
-                    "texture": ""
-                }
-            return {"name": None, "id": None, "texture": None}
-        except Exception:
-            return {"name": None, "id": None, "texture": None}
 
     async def _handle_texture_generation(self, image_path: str, params: dict) -> str:
         """Handle texture generation command"""
@@ -175,115 +160,6 @@ class ResponseHandler:
         )
         print(f"DEBUG - Generated texture name: {texture_name}")
         return texture_name
-
-    async def _handle_voxel_creation(self, params: dict, texture_name: str) -> str:
-        """Handle voxel type creation command"""
-        print("DEBUG - Creating voxel type...")
-        # Ensure texture_name has .png extension
-        if texture_name and not texture_name.endswith(".png"):
-            texture_name = f"{texture_name}.png"
-            
-        voxel_params = {
-            "displayName": params.get("name"),
-            "baseColor": params.get("base_color", "#FFFFFF"),
-            "description": params.get("description", ""),
-            "texture": texture_name  # Pass texture name to voxel creation
-        }
-        print(f"DEBUG - Voxel params: {voxel_params}")
-        return await asyncio.to_thread(
-            self._create_voxel_type,
-            voxel_params,
-            texture_name
-        )
-
-    async def _handle_db_fill(self, params: dict) -> str:
-        """Handle database fill command"""
-        print("DEBUG - Filling database...")
-        return await asyncio.to_thread(
-            process_documents,
-            section=params.get("section"),
-            content=params.get("content")
-        )
-
-    def _create_voxel_type(self, voxel_data: dict, texture_name: Optional[str] = None) -> str:
-        """Create new voxel type and update JSON file"""
-        print(f"DEBUG: Creating voxel type: {voxel_data}")
-        print(f"DEBUG: Texture name: {texture_name}")
-        
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(self.voxel_db_path), exist_ok=True)
-            
-            # Read existing voxel definitions
-            voxel_db = self._read_or_create_voxel_db()
-            
-            # Find max ID and create new voxel entry
-            next_voxel_id = self._get_next_voxel_id(voxel_db)
-            new_voxel = self._create_voxel_entry(next_voxel_id, voxel_data, texture_name)
-            
-            # Add new voxel and update database
-            voxel_db["voxels"].append(new_voxel)
-            voxel_db["revision"] = datetime.utcnow().isoformat("T") + "Z"
-            
-            # Save updated definitions
-            with open(self.voxel_db_path, 'w') as f:
-                json.dump(voxel_db, f, indent=4)
-                
-            return f"Successfully created voxel type: {new_voxel['name']} (ID: {next_voxel_id})"
-        
-        except Exception as e:
-            print(f"ERROR: Failed to create voxel type: {e}")
-            raise Exception(f"Failed to create voxel type: {e}")
-
-    def _read_or_create_voxel_db(self) -> dict:
-        """Read existing voxel database or create new one"""
-        if os.path.exists(self.voxel_db_path):
-            with open(self.voxel_db_path, 'r') as f:
-                return json.load(f)
-        return {
-            "next_id": 0,
-            "revision": datetime.utcnow().isoformat("T") + "Z",
-            "voxels": []
-        }
-
-    def _get_next_voxel_id(self, voxel_db: dict) -> int:
-        """Get next available voxel ID"""
-        max_id = -1
-        for voxel in voxel_db.get("voxels", []):
-            if "id" in voxel and voxel["id"] > max_id:
-                max_id = voxel["id"]
-        return max_id + 1
-
-    def _create_voxel_entry(self, voxel_id: int, voxel_data: dict, texture_name: Optional[str]) -> dict:
-        """Create new voxel entry"""
-        # Parse color
-        hex_color = voxel_data.get("baseColor", "#FFFFFF")
-        if hex_color.startswith("#"):
-            hex_color = hex_color[1:]
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        
-        # Handle display name
-        display_name = voxel_data.get("displayName", "Unknown")
-        if display_name.lower() == "unknown" or not display_name:
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            display_name = f"Unknown_{timestamp}"
-        
-        # Process texture name - use the one from voxel_data if available
-        texture_field = voxel_data.get("texture", "")
-        if not texture_field and texture_name:
-            texture_field = texture_name
-        
-        return {
-            "id": voxel_id,
-            "name": display_name,
-            "texture": texture_field,
-            "face_textures": ["", "", "", "", "", ""],
-            "base_color": [r, g, b],
-            "description": voxel_data.get("description", ""),
-            "is_transparent": False
-        }
 
 # Test response parsing functions
 def need_generate_texture(answer: str) -> bool:

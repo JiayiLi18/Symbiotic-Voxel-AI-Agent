@@ -47,7 +47,6 @@ class VoxelDB:
             "Basic": [],
             "Natural": [],
             "Mineral": [],
-            "Special": [],
             "Other": []
         }
         
@@ -62,8 +61,6 @@ class VoxelDB:
                 category = "Natural"
             elif any(word in name or word in desc for word in ['diamond', 'lapis', 'mineral']):
                 category = "Mineral"
-            elif voxel.get('is_transparent', False):
-                category = "Special"
             else:
                 category = "Other"
                 
@@ -110,10 +107,6 @@ class VoxelDB:
         if not voxels:
             return "No existing voxels to analyze."
         
-        # 收集颜色使用情况
-        colors = [self._format_color(voxel.get('base_color', [255, 255, 255])) 
-                 for voxel in voxels]
-        
         # 收集命名模式
         names = [voxel.get('name', '') for voxel in voxels]
         
@@ -129,17 +122,13 @@ class VoxelDB:
         analysis = [
             "## Style Analysis",
             f"\nTotal voxel types: {len(voxels)}",
-            f"\nColor palette size: {len(set(colors))}",
             "\nNaming patterns: " + (
                 "Consistent" if len(set(len(name.split()) for name in names)) <= 2
                 else "Varied"
             ),
             "\nTexture usage:",
             f"- {texture_stats['with_texture']} voxels have main texture",
-            f"- {texture_stats['with_face_textures']} voxels use face-specific textures",
-            "\nTransparency:",
-            f"- {len([v for v in voxels if v.get('is_transparent')])} transparent voxels",
-            f"- {len([v for v in voxels if not v.get('is_transparent')])} solid voxels"
+            f"- {texture_stats['with_face_textures']} voxels use face-specific textures"
         ]
         
         return "\n".join(analysis) 

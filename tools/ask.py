@@ -52,10 +52,6 @@ class ChromaDBManager:
         return res
 
 # ---------- constants ------------
-TYPE_WEIGHTS = {
-    "user_manual": 1.3,     # 手册内容权重略高
-    "design_rule": 1.0
-}
 
 # Load environment variables from .env file
 load_dotenv()
@@ -78,11 +74,10 @@ def _similarity(distance: float) -> float:
 
 def hybrid_retrieval(query, max_results=3):
     """
-    对手册 / 规则各取 max_results, 然后合并、加权、去重、排序。
-    若任何一步没有命中，都会打印调试信息方便定位。
+    对手册取 max_results, 然后排序。
+    若没有命中，都会打印调试信息方便定位。
     """
     res_manual = db_manager.query_by_type("user_manual", query, max_results)
-    res_rule = db_manager.query_by_type("design_rule", query, max_results)
     
     def _norm(x):
         """
@@ -97,27 +92,22 @@ def hybrid_retrieval(query, max_results=3):
 
     m_docs, m_meta, m_dist = map(_norm,
         (res_manual.get("documents"), res_manual.get("metadatas"), res_manual.get("distances")))
-    r_docs, r_meta, r_dist = map(_norm,
-        (res_rule.get("documents"),   res_rule.get("metadatas"),   res_rule.get("distances")))
     
     # ---------- 合并 ----------
     merged = [
-        (d, m, _similarity(s) * TYPE_WEIGHTS["user_manual"])
+        (d, m, _similarity(s) * 1)
         for d, m, s in zip(m_docs, m_meta, m_dist)
-    ] + [
-        (d, m, _similarity(s) * TYPE_WEIGHTS["design_rule"])
-        for d, m, s in zip(r_docs, r_meta, r_dist)
     ]
 
     if not merged:
         print("⚠️  hybrid_retrieval() - no hits at all.")
         return {"documents": [], "metadatas": [], "relevance_scores": [], "query": query}
     
-    # -------- 去重（按 manual_id / rule_id / name）--------
+    # -------- 去重（按 manual_id / name）--------
     seen_ids = set()
     unique   = []
     for doc, meta, score in sorted(merged, key=lambda x: x[2], reverse=True):
-        uid = meta.get("manual_id") or meta.get("rule_id") or meta.get("name")
+        uid = meta.get("manual_id") or meta.get("name")
         if uid not in seen_ids:
             seen_ids.add(uid)
             unique.append((doc, meta, score))
@@ -142,42 +132,73 @@ def build_dynamic_prompt(results, conversation_history: List[Dict[str, str]] = N
     """
     if not results['documents']:
         base_prompt = (
-            "You are a helpful AI assistant for a Unity-based voxel game.\n"
-            "Use the generate_response function to structure your responses.\n"
-            "When you are unsure, say so briefly."
-        )
-    else:
-        # Initialize sections for different types of content
-        rule_section   = []
-        manual_section = []
-        
-        # Process each retrieved document
-        for doc, meta, score in zip(results['documents'], results['metadatas'], results['relevance_scores']):
-            if meta.get('type') == "design_rule":
-                rule_section.append(
-                    f"- Rule: {doc[:300]}...\n"
-                    f"  (Relevance: {score:.2f})\n"
-                )
-            else:  # user_manual
-                manual_section.append(
-                    f"- Manual: {doc[:300]}...\n"
-                    f"  (Relevance: {score:.2f})\n"
-                )
-        
-        base_prompt = (
-            "You are an AI assistant for a Unity-based voxel game. "
+            "You are a creative and proactive AI assistant in a voxel world. "
+            "Take initiative in suggesting and creating new voxels that would enrich the game world. "
+            "When users ask for new voxels, don't just ask for parameters - suggest creative ideas based on: "
+            "1. The current voxel ecosystem (what's missing or could be enhanced) "
+            "2. Common game design patterns (what would be fun and useful) "
+            "3. Visual and thematic coherence (what would look good together) "
+            "\n\n"
             "Use the following context to help answer questions:\n\n"
-            "## Design Rules\n"
-            + ("\n".join(rule_section) if rule_section else "None found.")
-            + "\n\n## User Manual\n"
+            "## User Manual\n"
             + ("\n".join(manual_section) if manual_section else "None found.")
             + "\n\n"
             "## Instructions\n"
             "1. Use the generate_response function to structure your response.\n"
-            "2. For texture generation, include positive prompt, negative prompt, and denoise strength.\n"
-            "3. For voxel creation, specify display name, base color (hex), and description.\n"
+            "2. For texture generation, be creative! Suggest interesting combinations and themes. Default values:\n"
+            "   - Positive prompt: Be descriptive and specific about material properties and visual style\n"
+            "   - Negative prompt: 'text, blurry, watermark, artificial patterns'\n"
+            "   - Denoise strength: 0.7 for balanced variation\n"
+            "3. For voxel creation, you MUST first generate a texture using the generate_texture command, then use the returned texture path in the create_voxel_type command.\n"
             "4. For database updates, provide section and content.\n"
             "5. For voxel queries, provide concise summaries unless details are specifically requested.\n"
+            "\n"
+            "When users ask for new voxels:\n"
+            "1. Take initiative! Suggest specific voxel ideas based on the current ecosystem\n"
+            "2. Explain your creative reasoning - why this voxel would be valuable\n"
+            "3. If the user's request is vague, make reasonable assumptions and proceed\n"
+            "4. Consider both aesthetic and functional aspects in your suggestions\n"
+            "5. Feel free to suggest themed sets or complementary voxels\n"
+        )
+    else:
+        # Process each retrieved document
+        manual_section = []
+        
+        # Process each retrieved document
+        for doc, meta, score in zip(results['documents'], results['metadatas'], results['relevance_scores']):
+            manual_section.append(
+                f"- Manual: {doc[:300]}...\n"
+                f"  (Relevance: {score:.2f})\n"
+            )
+        
+        base_prompt = (
+            "You are a creative and proactive AI assistant for a Unity-based voxel game. "
+            "Take initiative in suggesting and creating new voxels that would enrich the game world. "
+            "When users ask for new voxels, don't just ask for parameters - suggest creative ideas based on: "
+            "1. The current voxel ecosystem (what's missing or could be enhanced) "
+            "2. Common game design patterns (what would be fun and useful) "
+            "3. Visual and thematic coherence (what would look good together) "
+            "\n\n"
+            "Use the following context to help answer questions:\n\n"
+            "## User Manual\n"
+            + ("\n".join(manual_section) if manual_section else "None found.")
+            + "\n\n"
+            "## Instructions\n"
+            "1. Use the generate_response function to structure your response.\n"
+            "2. For texture generation, be creative! Suggest interesting combinations and themes. Default values:\n"
+            "   - Positive prompt: Be descriptive and specific about material properties and visual style\n"
+            "   - Negative prompt: 'text, blurry, watermark, artificial patterns'\n"
+            "   - Denoise strength: 0.7 for balanced variation\n"
+            "3. For voxel creation, you MUST first generate a texture using the generate_texture command, then use the returned texture path in the create_voxel_type command.\n"
+            "4. For database updates, provide section and content.\n"
+            "5. For voxel queries, provide concise summaries unless details are specifically requested.\n"
+            "\n"
+            "When users ask for new voxels:\n"
+            "1. Take initiative! Suggest specific voxel ideas based on the current ecosystem\n"
+            "2. Explain your creative reasoning - why this voxel would be valuable\n"
+            "3. If the user's request is vague, make reasonable assumptions and proceed\n"
+            "4. Consider both aesthetic and functional aspects in your suggestions\n"
+            "5. Feel free to suggest themed sets or complementary voxels\n"
         )
 
     # Add voxel database information
@@ -252,7 +273,7 @@ def call_openai_api(
                                 "properties": {
                                     "type": {
                                         "type": "string",
-                                        "enum": ["generate_texture", "create_voxel_type", "fill_db"]
+                                        "enum": ["generate_texture", "create_voxel_type", "update_voxel_type"]
                                     },
                                     "params": {
                                         "type": "object",
@@ -271,18 +292,21 @@ def call_openai_api(
                                                 "type": "object",
                                                 "properties": {
                                                     "name": {"type": "string"},
-                                                    "base_color": {"type": "string"},
-                                                    "description": {"type": "string"}
+                                                    "description": {"type": "string"},
+                                                    "is_transparent": {"type": "boolean"}
                                                 },
                                                 "required": ["name"]
                                             },
                                             {
                                                 "type": "object",
                                                 "properties": {
-                                                    "section": {"type": "string"},
-                                                    "content": {"type": "string"}
+                                                    "name": {"type": "string"},
+                                                    "voxel_id": {"type": "integer"},
+                                                    "description": {"type": "string"},
+                                                    "texture": {"type": "string"},
+                                                    "is_transparent": {"type": "boolean"}
                                                 },
-                                                "required": ["section", "content"]
+                                                "required": ["name"]
                                             }
                                         ]
                                     }
