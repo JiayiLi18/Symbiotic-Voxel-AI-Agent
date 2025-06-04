@@ -1,57 +1,10 @@
-import chromadb
+import os
 from openai import OpenAI
 from dotenv import load_dotenv
-import os
-import time
 import json
-from typing import List, Dict, Tuple, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from .models import Response, Command
 from .voxel_db import VoxelDB
-from .fill_db import process_documents
-
-class ChromaDBManager:
-    def __init__(self, path: str):
-        self.client = chromadb.PersistentClient(path=path)
-        self.collection = None
-        self.ensure_collection_exists()
-    
-    def ensure_collection_exists(self):
-        """确保ChromaDB集合存在，如果不存在则初始化"""
-        try:
-            self.collection = self.client.get_collection(name="unity_ai_agent")
-        except Exception as e:
-            print("Collection not found, initializing database...")
-            process_documents()  # 初始化数据库
-            self.collection = self.client.get_collection(name="unity_ai_agent")
-    
-    def query_by_type(self, tp: str, query_text: str, n_results: int) -> Dict:
-        """按类型查询，添加错误处理和自动重试"""
-        try:
-            res = self.collection.query(
-                query_texts=[query_text],
-                n_results=n_results,
-                where={"type": tp},
-                include=["documents", "metadatas", "distances"]
-            ) or {}
-        except chromadb.errors.InvalidCollectionException:
-            # 如果集合无效，尝试重新初始化
-            print("Invalid collection, reinitializing...")
-            self.ensure_collection_exists()
-            # 重试查询
-            res = self.collection.query(
-                query_texts=[query_text],
-                n_results=n_results,
-                where={"type": tp},
-                include=["documents", "metadatas", "distances"]
-            ) or {}
-        
-        # ----------- DEBUG -------------
-        print(f"\n🔍 Chroma query for '{tp}' →")
-        for k, v in res.items():
-            print(f"  {k}: {len(v[0]) if isinstance(v, list) and v else v}")
-        return res
-
-# ---------- constants ------------
 
 # Load environment variables from .env file
 load_dotenv()
@@ -61,156 +14,90 @@ if not os.getenv("OPENAI_API_KEY"):
     raise ValueError("Please set OPENAI_API_KEY in your .env file")
 
 # Configure paths for data storage
-CHROMA_PATH = r"chroma_db"  # Directory for ChromaDB storage
 VOXEL_DB_PATH = r"C:\Users\55485\AppData\LocalLow\DefaultCompany\AI-Agent\VoxelsDB\voxel_definitions.json"
-
-# Initialize managers
-db_manager = ChromaDBManager(CHROMA_PATH)
+MANUAL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "manuals", "voxel_world_manual.md")
 voxel_db = VoxelDB(VOXEL_DB_PATH)
 
-def _similarity(distance: float) -> float:
-    """Chroma 里 distance → similarity, 避免除 0."""
-    return 1 / (1 + distance)
+def load_game_manual():
+    """Load the game manual content"""
+    try:
+        with open(MANUAL_PATH, 'r', encoding='utf-8') as f:
+            return f.read()
+    except Exception as e:
+        print(f"Warning: Could not load game manual: {e}")
+        return ""
 
-def hybrid_retrieval(query, max_results=3):
-    """
-    对手册取 max_results, 然后排序。
-    若没有命中，都会打印调试信息方便定位。
-    """
-    res_manual = db_manager.query_by_type("user_manual", query, max_results)
-    
-    def _norm(x):
-        """
-        把 None、[], [[]] 都归一到 []，其余保持为一维 list。
-        """
-        if not x:
-            return []
-        # x 形如 [[]] → 取第一层
-        if isinstance(x, list) and len(x) == 1 and isinstance(x[0], list):
-            return x[0]
-        return x                 # 一维 list 直接返回
-
-    m_docs, m_meta, m_dist = map(_norm,
-        (res_manual.get("documents"), res_manual.get("metadatas"), res_manual.get("distances")))
-    
-    # ---------- 合并 ----------
-    merged = [
-        (d, m, _similarity(s) * 1)
-        for d, m, s in zip(m_docs, m_meta, m_dist)
-    ]
-
-    if not merged:
-        print("⚠️  hybrid_retrieval() - no hits at all.")
-        return {"documents": [], "metadatas": [], "relevance_scores": [], "query": query}
-    
-    # -------- 去重（按 manual_id / name）--------
-    seen_ids = set()
-    unique   = []
-    for doc, meta, score in sorted(merged, key=lambda x: x[2], reverse=True):
-        uid = meta.get("manual_id") or meta.get("name")
-        if uid not in seen_ids:
-            seen_ids.add(uid)
-            unique.append((doc, meta, score))
-    
-     # 最终裁剪到 5 × max_results
-    top_k = unique[: max_results * 5]
-
-    # 打包
-    return {
-        "documents":        [d for d, _, _ in top_k],
-        "metadatas":        [m for _, m, _ in top_k],
-        "relevance_scores": [s for _, _, s in top_k],
-        "query": query
-    }
-    
-def build_dynamic_prompt(results, conversation_history: List[Dict[str, str]] = None):
+def build_prompt(conversation_history: List[Dict[str, str]] = None):
     """
     Build the system prompt for the AI
     Args:
-        results: The search results from ChromaDB
-        conversation_history: List of conversation messages, each containing 'role' and 'content' (text only)
+        conversation_history: List of conversation messages, each containing 'role' and 'content'
     """
-    if not results['documents']:
-        base_prompt = (
-            "You are a creative and proactive AI assistant in a voxel world. "
-            "Take initiative in suggesting and creating new voxels that would enrich the game world. "
-            "When users ask for new voxels, don't just ask for parameters - suggest creative ideas based on: "
-            "1. The current voxel ecosystem (what's missing or could be enhanced) "
-            "2. Common game design patterns (what would be fun and useful) "
-            "3. Visual and thematic coherence (what would look good together) "
-            "\n\n"
-            "Use the following context to help answer questions:\n\n"
-            "## User Manual\n"
-            + ("\n".join(manual_section) if manual_section else "None found.")
-            + "\n\n"
-            "## Instructions\n"
-            "1. Use the generate_response function to structure your response.\n"
-            "2. For texture generation, be creative! Suggest interesting combinations and themes. Default values:\n"
-            "   - Positive prompt: Be descriptive and specific about material properties and visual style\n"
-            "   - Negative prompt: 'text, blurry, watermark, artificial patterns'\n"
-            "   - Denoise strength: 0.7 for balanced variation\n"
-            "3. For voxel creation, you MUST first generate a texture using the generate_texture command, then use the returned texture path in the create_voxel_type command.\n"
-            "4. For database updates, provide section and content.\n"
-            "5. For voxel queries, provide concise summaries unless details are specifically requested.\n"
-            "\n"
-            "When users ask for new voxels:\n"
-            "1. Take initiative! Suggest specific voxel ideas based on the current ecosystem\n"
-            "2. Explain your creative reasoning - why this voxel would be valuable\n"
-            "3. If the user's request is vague, make reasonable assumptions and proceed\n"
-            "4. Consider both aesthetic and functional aspects in your suggestions\n"
-            "5. Feel free to suggest themed sets or complementary voxels\n"
-        )
-    else:
-        # Process each retrieved document
-        manual_section = []
+    # Load game manual
+    game_manual = load_game_manual()
+    
+    base_prompt = (
+        "You are an AI assistant for a voxel world. Keep responses concise and focus on executing commands.\n\n"
         
-        # Process each retrieved document
-        for doc, meta, score in zip(results['documents'], results['metadatas'], results['relevance_scores']):
-            manual_section.append(
-                f"- Manual: {doc[:300]}...\n"
-                f"  (Relevance: {score:.2f})\n"
-            )
+        f"## Game Manual\n{game_manual}\n\n"
         
-        base_prompt = (
-            "You are a creative and proactive AI assistant for a Unity-based voxel game. "
-            "Take initiative in suggesting and creating new voxels that would enrich the game world. "
-            "When users ask for new voxels, don't just ask for parameters - suggest creative ideas based on: "
-            "1. The current voxel ecosystem (what's missing or could be enhanced) "
-            "2. Common game design patterns (what would be fun and useful) "
-            "3. Visual and thematic coherence (what would look good together) "
-            "\n\n"
-            "Use the following context to help answer questions:\n\n"
-            "## User Manual\n"
-            + ("\n".join(manual_section) if manual_section else "None found.")
-            + "\n\n"
-            "## Instructions\n"
-            "1. Use the generate_response function to structure your response.\n"
-            "2. For texture generation, be creative! Suggest interesting combinations and themes. Default values:\n"
-            "   - Positive prompt: Be descriptive and specific about material properties and visual style\n"
-            "   - Negative prompt: 'text, blurry, watermark, artificial patterns'\n"
-            "   - Denoise strength: 0.7 for balanced variation\n"
-            "3. For voxel creation, you MUST first generate a texture using the generate_texture command, then use the returned texture path in the create_voxel_type command.\n"
-            "4. For database updates, provide section and content.\n"
-            "5. For voxel queries, provide concise summaries unless details are specifically requested.\n"
-            "\n"
-            "When users ask for new voxels:\n"
-            "1. Take initiative! Suggest specific voxel ideas based on the current ecosystem\n"
-            "2. Explain your creative reasoning - why this voxel would be valuable\n"
-            "3. If the user's request is vague, make reasonable assumptions and proceed\n"
-            "4. Consider both aesthetic and functional aspects in your suggestions\n"
-            "5. Feel free to suggest themed sets or complementary voxels\n"
-        )
+        "## Available Commands\n\n"
+        
+        "1. Generate Texture (generate_texture):\n"
+        "   - Purpose: Create textures for voxels\n"
+        "   - Parameters:\n"
+        "     * pprompt (required): Format 'Texture of [descriptive words], seamless'\n"
+        "     * nprompt (optional): Default 'text, blurry, watermark'\n"
+        "     * denoise (optional): Default 1.0\n"
+        "   - IMPORTANT: Must be used with create_voxel_type or update_voxel_type\n\n"
+        
+        "2. Create Voxel Type (create_voxel_type):\n"
+        "   - Purpose: Create new voxel types\n"
+        "   - Parameters:\n"
+        "     * name (required): Unique, descriptive name\n"
+        "     * description (required): Brief description\n"
+        "   - Must reference existing types in voxel database\n\n"
+        
+        "3. Update Voxel Type (update_voxel_type):\n"
+        "   - Purpose: Modify existing voxel types\n"
+        "   - Parameters:\n"
+        "     * name (required): Existing voxel name\n"
+        "     * description (optional): New description\n"
+        "     * texture (optional): New texture path\n"
+        "   - Must select target from existing voxel database\n\n"
+        
+        "## Response Guidelines\n\n"
+        
+        "1. Keep answers brief and focused on commands\n"
+        "2. Never use generate_texture alone\n"
+        "3. Command sequences:\n"
+        "   - New voxel: generate_texture + create_voxel_type\n"
+        "   - Update voxel: generate_texture + update_voxel_type (or update_voxel_type alone)\n"
+        "4. Maximum response length: 500 words\n\n"
+        
+        "## Example Command Sequence:\n"
+        "{\n"
+        "  \"commands\": [\n"
+        "    {\n"
+        "      \"type\": \"generate_texture\",\n"
+        "      \"params\": {\n"
+        "        \"pprompt\": \"Texture of polished marble with gold veins, seamless\"\n"
+        "      }\n"
+        "    },\n"
+        "    {\n"
+        "      \"type\": \"create_voxel_type\",\n"
+        "      \"params\": {\n"
+        "        \"name\": \"Golden Marble\",\n"
+        "        \"description\": \"Luxurious marble with gold veins\"\n"
+        "      }\n"
+        "    }\n"
+        "  ]\n"
+        "}\n"
+    )
 
     # Add voxel database information
-    # 默认使用简化版摘要，除非查询明确要求详细信息
-    detailed = any(word in results.get('query', '').lower() for word in 
-                  ['detail', 'describe', 'explain', 'tell me more', 'what is'])
-    voxel_summary = voxel_db.get_voxel_summary(detailed=detailed)
-    style_analysis = voxel_db.get_style_analysis() if detailed else ""
-    
-    base_prompt += f"\n\n{voxel_summary}"
-    if detailed:
-        base_prompt += f"\n\n{style_analysis}"
+    voxel_summary = voxel_db.get_voxel_summary(detailed=False)
+    base_prompt += f"\n\n## Current Voxel Database Summary:\n{voxel_summary}"
 
     # Add conversation history if available
     if conversation_history:
@@ -218,7 +105,6 @@ def build_dynamic_prompt(results, conversation_history: List[Dict[str, str]] = N
         for msg in conversation_history:
             role = msg['role'].capitalize()
             content = msg['content']
-            # content is guaranteed to be text-only now
             base_prompt += f"{role}: {content}\n"
 
     return base_prompt
@@ -244,13 +130,8 @@ def call_openai_api(
         None
     )
 
-    # 执行RAG检索
-    print("\nQuerying ChromaDB...")
-    results = hybrid_retrieval(text_content)
-    print(f"Found {len(results['documents'])} relevant documents")
-
     # 准备系统提示词
-    system_prompt = build_dynamic_prompt(results, conversation_history or [])
+    system_prompt = build_prompt(conversation_history)
 
     # 定义函数工具
     tools = [
@@ -340,6 +221,9 @@ def call_openai_api(
 
     # 调用API
     try:
+        print("\nDEBUG - Calling OpenAI API with messages:", json.dumps(api_messages, indent=2))
+        print("\nDEBUG - Using tools:", json.dumps(tools, indent=2))
+        
         client = OpenAI(timeout=timeout)
         response = client.chat.completions.create(
             model=model,
@@ -347,6 +231,9 @@ def call_openai_api(
             tools=tools,
             tool_choice={"type": "function", "function": {"name": "generate_response"}}
         )
+
+        print("\nDEBUG - Raw API response:", response)
+        print("\nDEBUG - Tool calls:", response.choices[0].message.tool_calls)
 
         # Get token usage information
         token_usage = {

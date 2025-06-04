@@ -1,7 +1,8 @@
-from fastapi import FastAPI, File, UploadFile, Form, Query, Header
+from fastapi import FastAPI, File, UploadFile, Form, Query, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import os, uvicorn, json
+from datetime import datetime
 
 # Import core functionality
 from tools.ask import call_openai_api
@@ -25,23 +26,32 @@ app.add_middleware(
 async def ask_general(
     query: str = Form(...),
     image_path: Optional[str] = Form(None),
-    session_id: Optional[str] = Header(None),
-    new_session: bool = Form(False)
+    session_id: Optional[str] = Header(None, alias="session-id"),
+    new_session: bool = Form(False),
+    request: Request = None
 ):
     """
     Main endpoint for handling general queries with optional image input
     Args:
         query: 用户的查询文本
         image_path: 可选的图片路径
-        session_id: 会话ID（在header中）
+        session_id: 会话ID（可选，如果不提供会自动生成）
         new_session: 是否开启新会话
     """
-    # 处理会话ID
-    if not session_id:
-        return {"error": "Missing session_id in headers"}
+    # 打印请求信息
+    print("\n=== Unity Request ===")
+    print(f"Query: {query}")
+    print(f"Image Path: {image_path}")
+    print(f"Session ID: {session_id}")
+    print(f"New Session: {new_session}")
+    print("===================\n")
+
+    # 如果没有提供session_id或要求新会话，生成新的session_id
+    if not session_id or new_session:
+        session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     # 如果要求新会话，清除历史记录
-    if new_session:
+    if new_session and session_id in session_manager.sessions:
         session_manager.clear_session(session_id)
     
     # 获取历史记录
@@ -64,10 +74,12 @@ async def ask_general(
             messages,
             conversation_history=conversation_history
         )
-        print(f"\nDEBUG - GPT Response JSON:\n{response_json}")
+        print("\n=== GPT Response ===")
+        print(json.dumps(json.loads(response_json), indent=2))
+        print("==================\n")
         
         # 添加新的对话到历史记录
-        session_manager.add_message("user", "user", query)
+        session_manager.add_message(session_id, "user", query)
         
         # 从response_json中提取assistant的回复并添加到历史记录
         try:
@@ -81,7 +93,18 @@ async def ask_general(
         return {"error": f"Failed to call GPT: {e}"}
 
     # Process response and execute commands
-    return await response_handler.process_response(query, response_json, usage, image_path)
+    result = await response_handler.process_response(query, response_json, usage, image_path)
+    
+    # 在响应中添加session_id
+    if isinstance(result, dict):
+        result["session_id"] = session_id
+    
+    # 打印最终返回给Unity的响应
+    print("\n=== Response to Unity ===")
+    print(json.dumps(result, indent=2))
+    print("=======================\n")
+    
+    return result
 
 @app.post("/clear_session")
 async def clear_session(session_id: str = Header(...)):

@@ -111,7 +111,7 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
         print("Error: Positive prompt cannot be empty!")
         return None
     
-    print("Starting image generation process...")
+    print(f"Starting image generation process for texture: {tex_name}")
     if not tex_name:
         tex_name = pprompt[:20]  # 如果没有提供名称，使用提示词的前20个字符
     
@@ -134,7 +134,6 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
     # 如果没有输入图片，则设置denoise为1
     if not input_image:
         print("Warning: No input image provided, using default denoise strength 1, controlNet strength = 0")
-        #TODO: 需要修改为使用empty latent image节点
         denoise = 1
         workflow["3"]["inputs"]["strength"] = 0
     else:
@@ -161,7 +160,7 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
     workflow["3"]["inputs"]["denoise"] = denoise
     
     # 连接WebSocket并执行工作流
-    print("Connecting to WebSocket...")
+    print(f"Connecting to WebSocket for {tex_name}...")
     ws = websocket.WebSocket()
     ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
     print("WebSocket connection successful")
@@ -171,7 +170,7 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
     ws.close()
     
     # 保存生成的图片
-    print("Saving generated images...")
+    print(f"Saving generated images for {tex_name}...")
     saved_images = []
     for node_id in images:
         if node_id == "75":  # 只处理node_id为75的节点
@@ -180,16 +179,55 @@ def call_comfyUI(input_image = "",tex_name="", pprompt="", nprompt="text", denoi
                 import io
                 image = Image.open(io.BytesIO(image_data))
                 os.makedirs(output_tex_dir, exist_ok=True)
-                output_path = os.path.normpath(os.path.join(output_tex_dir, f"Texture-{tex_name}-{seed}.png")).replace("\\", "/")
-                tex_name = output_path.split("/")[-1].split(".")[0]
+                # 使用时间戳确保文件名唯一
+                import time
+                timestamp = int(time.time() * 1000)
+                output_path = os.path.normpath(os.path.join(output_tex_dir, f"{tex_name}-{timestamp}.png")).replace("\\", "/")
                 image.save(output_path)
                 saved_images.append(output_path)
                 print(f"Image saved to: {output_path}")
+                # 返回不带路径和扩展名的纹理名称
+                return f"{tex_name}-{timestamp}"
     
-    print("All operations completed!")
-    return tex_name
+    print(f"Completed texture generation for {tex_name}!")
+    return None
+
+def batch_generate_textures(texture_requests):
+    """
+    批量生成多个纹理
+    Args:
+        texture_requests: 包含多个纹理生成请求的列表，每个请求是一个字典，包含tex_name和pprompt
+    Returns:
+        list: 生成的纹理名称列表
+    """
+    results = []
+    for request in texture_requests:
+        tex_name = request.get('tex_name', '')
+        pprompt = request.get('pprompt', '')
+        nprompt = request.get('nprompt', 'text, blurry, watermark')
+        denoise = request.get('denoise', 1.0)
+        
+        print(f"\nProcessing texture request: {tex_name}")
+        result = call_comfyUI(
+            tex_name=tex_name,
+            pprompt=pprompt,
+            nprompt=nprompt,
+            denoise=denoise
+        )
+        if result:
+            results.append(result)
+            print(f"Successfully generated texture: {result}")
+        else:
+            print(f"Failed to generate texture for: {tex_name}")
+    
+    return results
 
 # ---在此脚本中直接运行验证---
 if __name__ == "__main__": #只有当这个脚本是被直接运行时，下面的代码才会执行。
-    # 生成单个贴图
-    call_comfyUI("", "sea", "Texture of sea", "text, bad quality", 1)
+    # 测试批量生成
+    test_requests = [
+        {"tex_name": "crystal", "pprompt": "Texture of crystal"},
+        {"tex_name": "wood", "pprompt": "Texture of wood"},
+        {"tex_name": "stone", "pprompt": "Texture of stone"}
+    ]
+    batch_generate_textures(test_requests)

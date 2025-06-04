@@ -40,116 +40,116 @@ class ResponseHandler:
                 "answer": response_data.get("answer", ""),
                 "token_usage": usage,
                 "commands": {
-                    "texture": {
-                        "executed": False,
-                        "success": False,
-                        "texture_path": None,
-                        "error": None
-                    },
-                    "voxel": {
-                        "executed": False,
-                        "success": False,
-                        "voxel_id": None,
-                        "voxel_name": None,
-                        "texture_path": None,
-                        "error": None,
-                        "operation": None  # 'create' or 'update'
-                    }
+                    "textures": [],  # List to store multiple texture results
+                    "voxels": []     # List to store multiple voxel results
                 }
             }
         }
 
         commands = response_data.get("commands", [])
-        print(f"\nDEBUG - Processing {len(commands)} commands")
         
-        # First, process texture generation if it exists
-        texture_name = None
-        for command in commands:
-            if command.get("type") == "generate_texture":
-                try:
-                    response_payload["data"]["commands"]["texture"]["executed"] = True
-                    texture_name = await self._handle_texture_generation(image_path, command.get("params", {}))
-                    if texture_name and not texture_name.endswith(".png"):
-                        texture_name = f"{texture_name}.png"
-                    response_payload["data"]["commands"]["texture"].update({
-                        "success": True,
-                        "texture_path": texture_name
-                    })
-                except Exception as e:
-                    error_msg = f"Error in generate_texture: {str(e)}"
-                    print(f"DEBUG - {error_msg}")
-                    response_payload["data"]["commands"]["texture"]["error"] = error_msg
-                break  # Only process the first texture command
-
-        # Then process other commands
+        # Process commands in pairs (texture generation + voxel creation/update)
+        current_texture = None
+        
         for command in commands:
             command_type = command.get("type")
-            if command_type == "generate_texture":
-                continue  # Skip as we've already processed it
-
             params = command.get("params", {})
-            print(f"\nDEBUG - Processing command: {command_type}")
-            print(f"DEBUG - Command params: {params}")
 
             try:
-                if command_type == "create_voxel_type":
-                    response_payload["data"]["commands"]["voxel"]["executed"] = True
-                    # 使用VoxelManager创建voxel
-                    voxel_params = VoxelTypeParams(
-                        name=params.get("name"),
-                        description=params.get("description", ""),
-                        texture=texture_name or "",
-                        is_transparent=params.get("is_transparent", False)
-                    )
-                    new_voxel = self.voxel_manager.create_voxel_type(voxel_params)
-                    response_payload["data"]["commands"]["voxel"].update({
-                        "success": True,
-                        "voxel_id": new_voxel["id"],
-                        "voxel_name": new_voxel["name"],
-                        "texture_path": texture_name,
-                        "operation": "create"
-                    })
-                elif command_type == "update_voxel_type":
-                    response_payload["data"]["commands"]["voxel"]["executed"] = True
-                    # 使用VoxelManager更新voxel
-                    voxel_name = params.get("name")
-                    voxel = self.voxel_manager.get_voxel_by_name(voxel_name)
-                    voxel_id = voxel["id"] if voxel else None
+                if command_type == "generate_texture":
+                    # Handle texture generation
+                    texture_result = {
+                        "executed": True,
+                        "success": False,
+                        "texture_path": None,
+                        "error": None
+                    }
                     
-                    if voxel_id:
-                        update_params = {}
-                        if texture_name:
-                            update_params["texture"] = texture_name
-                        if "description" in params:
-                            update_params["description"] = params["description"]
-                        if "is_transparent" in params:
-                            update_params["is_transparent"] = params["is_transparent"]
-                        
-                        updated_voxel = self.voxel_manager.update_voxel_type(voxel_id, update_params)
-                        if updated_voxel:
-                            response_payload["data"]["commands"]["voxel"].update({
+                    try:
+                        current_texture = await self._handle_texture_generation(image_path, params)
+                        if current_texture and not current_texture.endswith(".png"):
+                            current_texture = f"{current_texture}.png"
+                        texture_result.update({
+                            "success": True,
+                            "texture_path": current_texture
+                        })
+                    except Exception as e:
+                        texture_result["error"] = f"Error in generate_texture: {str(e)}"
+                        current_texture = None
+                    
+                    response_payload["data"]["commands"]["textures"].append(texture_result)
+
+                elif command_type in ["create_voxel_type", "update_voxel_type"]:
+                    # Handle voxel creation/update
+                    voxel_result = {
+                        "executed": True,
+                        "success": False,
+                        "voxel_id": None,
+                        "voxel_name": None,
+                        "texture_path": current_texture,
+                        "error": None,
+                        "operation": command_type.split("_")[0]  # 'create' or 'update'
+                    }
+
+                    try:
+                        if command_type == "create_voxel_type":
+                            voxel_params = VoxelTypeParams(
+                                name=params.get("name"),
+                                description=params.get("description", ""),
+                                texture=current_texture or "",
+                                is_transparent=params.get("is_transparent", False)
+                            )
+                            new_voxel = self.voxel_manager.create_voxel_type(voxel_params)
+                            voxel_result.update({
                                 "success": True,
-                                "voxel_id": updated_voxel["id"],
-                                "voxel_name": updated_voxel["name"],
-                                "texture_path": texture_name,
-                                "operation": "update"
+                                "voxel_id": new_voxel["id"],
+                                "voxel_name": new_voxel["name"]
                             })
-                        else:
-                            response_payload["data"]["commands"]["voxel"]["error"] = f"Failed to update voxel with ID {voxel_id}"
-                    else:
-                        response_payload["data"]["commands"]["voxel"]["error"] = f"Voxel with name '{voxel_name}' not found"
+                        else:  # update_voxel_type
+                            voxel_name = params.get("name")
+                            voxel = self.voxel_manager.get_voxel_by_name(voxel_name)
+                            voxel_id = voxel["id"] if voxel else None
+                            
+                            if voxel_id:
+                                update_params = {}
+                                if current_texture:
+                                    update_params["texture"] = current_texture
+                                elif params.get("texture"):
+                                    update_params["texture"] = params["texture"]
+                                
+                                if "description" in params:
+                                    update_params["description"] = params["description"]
+                                if "is_transparent" in params:
+                                    update_params["is_transparent"] = params["is_transparent"]
+                                
+                                if update_params:
+                                    updated_voxel = self.voxel_manager.update_voxel_type(voxel_id, update_params)
+                                    if updated_voxel:
+                                        voxel_result.update({
+                                            "success": True,
+                                            "voxel_id": updated_voxel["id"],
+                                            "voxel_name": updated_voxel["name"]
+                                        })
+                                    else:
+                                        voxel_result["error"] = f"Failed to update voxel with ID {voxel_id}"
+                                else:
+                                    voxel_result["error"] = "No parameters provided for update"
+                            else:
+                                voxel_result["error"] = f"Voxel with name '{voxel_name}' not found"
+
+                    except Exception as e:
+                        voxel_result["error"] = f"Error in {command_type}: {str(e)}"
+
+                    response_payload["data"]["commands"]["voxels"].append(voxel_result)
+                    current_texture = None  # Reset current texture after voxel creation/update
 
             except Exception as e:
-                error_msg = f"Error in {command_type}: {str(e)}"
-                print(f"DEBUG - {error_msg}")
-                if command_type in ["create_voxel_type", "update_voxel_type"]:
-                    response_payload["data"]["commands"]["voxel"]["error"] = error_msg
+                print(f"Error processing command {command_type}: {str(e)}")
 
         return response_payload
 
     async def _handle_texture_generation(self, image_path: str, params: dict) -> str:
         """Handle texture generation command"""
-        print("DEBUG - Generating texture...")
         texture_name = await asyncio.to_thread(
             call_comfyUI,
             image_path,
@@ -158,14 +158,11 @@ class ResponseHandler:
             params.get("nprompt", "text, blurry, watermark"),
             params.get("denoise", 1.0)
         )
-        print(f"DEBUG - Generated texture name: {texture_name}")
         return texture_name
 
 # Test response parsing functions
 def need_generate_texture(answer: str) -> bool:
     """Check if texture generation is needed"""
-    print("DEBUG: Checking if texture generation is needed")
-    
     try:
         json_str = answer[answer.find("{"):answer.rfind("}")+1]
         data = json.loads(json_str)
@@ -178,8 +175,6 @@ def need_generate_texture(answer: str) -> bool:
 
 def parse_texture_params(answer: str, input_image_path: str = "") -> dict:
     """Parse texture parameters from GPT response"""
-    print("DEBUG: Parsing texture parameters")
-    
     try:
         json_str = answer[answer.find("{"):answer.rfind("}")+1]
         data = json.loads(json_str)
@@ -226,7 +221,6 @@ def parse_fill_content(answer: str) -> Tuple[str, str]:
 
 def need_create_voxel_type(answer: str) -> bool:
     """Check if voxel type creation is needed"""
-    print("DEBUG: Checking if voxel type creation is needed")
     try:
         json_str = answer[answer.find("{"):answer.rfind("}")+1]
         data = json.loads(json_str)
@@ -241,7 +235,6 @@ def need_create_voxel_type(answer: str) -> bool:
 
 def parse_voxel_type_data(answer: str) -> dict:
     """Parse voxel type data from GPT response"""
-    print("DEBUG: Parsing voxel type data")
     try:
         pattern = r'({[\s\S]*?"command"\s*:\s*"create_voxel_type"[\s\S]*?})'
         match = re.search(pattern, answer, re.DOTALL)
