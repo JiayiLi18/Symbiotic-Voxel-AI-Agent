@@ -1,0 +1,146 @@
+{
+    "next_id": 8,
+    "revision": "2025-07-18T00:45:01.6232301Z",
+    "voxels": [
+        {
+            "id": 0,
+            "name": "Air",
+            "texture": "",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Air block (transparent).",
+            "is_transparent": true
+        },
+        {
+            "id": 1,
+            "name": "Draft",
+            "texture": "",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A block for you to test. Try adding color and texture to it.",
+            "is_transparent": false
+        },
+        {
+            "id": 2,
+            "name": "Base",
+            "texture": "Texture-base.png",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A base block.",
+            "is_transparent": false
+        },
+        {
+            "id": 3,
+            "name": "Dirt",
+            "texture": "",
+            "face_textures": [
+                "Texture-dirt-2.png",
+                "Texture-dirt-2.png",
+                "Texture-dirt-1.png",
+                "Texture-dirt-0.png",
+                "Texture-dirt-2.png",
+                "Texture-dirt-2.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Rich, moist soil with small pebbles",
+            "is_transparent": false
+        },
+        {
+            "id": 4,
+            "name": "Mushroom Meat",
+            "texture": "Texture of a lighter-1752660350840.png",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A lighter version of the mushroom",
+            "is_transparent": false
+        },
+        {
+            "id": 6,
+            "name": "Leaves",
+            "texture": "Texture of vibrant g-1752799452580.png",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Vibrant green leaves with light rays",
+            "is_transparent": false
+        },
+        {
+            "id": 7,
+            "name": "TreeTrunk",
+            "texture": "Texture of rough bro-1752799402735.png",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Sturdy trunk for trees",
+            "is_transparent": false
+        }
+    ]
+}

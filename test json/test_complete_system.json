@@ -1,0 +1,148 @@
+{
+  "session_id": "sess_complete_test_001",
+  "goal_id": "goal_001_001",
+  "goal_label": "Complete system test - all command types and planning scenarios",
+  "approved_plans": [
+    {
+      "id": "plan_001_01",
+      "action_type": "create_voxel_type",
+      "description": "Create a single-color voxel using Lake Blue for the whole block",
+      "depends_on": null
+    },
+    {
+      "id": "plan_001_02",
+      "action_type": "create_voxel_type",
+      "description": "Create a multi-face voxel with different colors: top=red, bottom=blue, front=green, back=yellow, left=purple, right=orange",
+      "depends_on": null
+    },
+    {
+      "id": "plan_001_03",
+      "action_type": "update_voxel_type",
+      "description": "Update the Lake Blue voxel to be darker and add description",
+      "depends_on": ["plan_001_01"]
+    },
+    {
+      "id": "plan_001_04",
+      "action_type": "place_block",
+      "description": "Place 3 single-color blocks starting 1 block in front of the agent",
+      "depends_on": ["plan_001_01"]
+    },
+    {
+      "id": "plan_001_05",
+      "action_type": "place_block",
+      "description": "Place 2 multi-color blocks starting 1 block to the left of the agent",
+      "depends_on": ["plan_001_02"]
+    },
+    {
+      "id": "plan_001_06",
+      "action_type": "place_block",
+      "description": "Place 1 updated block starting 2 blocks above the agent",
+      "depends_on": ["plan_001_03"]
+    },
+    {
+      "id": "plan_001_07",
+      "action_type": "destroy_block",
+      "description": "Destroy 1 block starting 1 block behind the agent",
+      "depends_on": null
+    },
+    {
+      "id": "plan_001_08",
+      "action_type": "destroy_block",
+      "description": "Destroy 2 blocks starting 1 block to the right of the agent, only destroy dirt blocks",
+      "depends_on": null
+    },
+    {
+      "id": "plan_001_09",
+      "action_type": "move_to",
+      "description": "Move agent forward 3 blocks, then left 2 blocks, then up 1 block",
+      "depends_on": ["plan_001_04", "plan_001_05", "plan_001_06"]
+    },
+    {
+      "id": "plan_001_10",
+      "action_type": "continue_plan",
+      "description": "Check the structure and plan next phase",
+      "depends_on": ["plan_001_09"]
+    }
+  ],
+  "additional_info": "Complete system test covering all command types: create_voxel_type (single/multi-color), update_voxel_type, place_block (different directions/counts), destroy_block (with/without filtering), move_to (relative movement), and continue_plan for complex workflows",
+  "game_state": {
+    "timestamp": "150000",
+    "player_abs_position": {
+      "x": 20,
+      "y": 10,
+      "z": 15
+    },
+    "agent_abs_position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "directional_voxels": [
+      {
+        "direction": "front",
+        "distance": 10,
+        "voxel_name": null,
+        "voxel_id": null
+      },
+      {
+        "direction": "back",
+        "distance": 1,
+        "voxel_name": "Dirt",
+        "voxel_id": "3"
+      },
+      {
+        "direction": "left",
+        "distance": 10,
+        "voxel_name": null,
+        "voxel_id": null
+      },
+      {
+        "direction": "right",
+        "distance": 1,
+        "voxel_name": "Dirt",
+        "voxel_id": "3"
+      },
+      {
+        "direction": "right",
+        "distance": 2,
+        "voxel_name": "Leaves",
+        "voxel_id": "6"
+      },
+      {
+        "direction": "up",
+        "distance": 10,
+        "voxel_name": null,
+        "voxel_id": null
+      },
+      {
+        "direction": "down",
+        "distance": 1,
+        "voxel_name": "Dirt",
+        "voxel_id": "3"
+      }
+    ],
+    "pending_plans": [
+      {
+        "id": "old_plan_001",
+        "goal_id": "goal_000_001",
+        "action_type": "place_block",
+        "description": "Previous unfinished plan",
+        "depends_on": null
+      }
+    ],
+    "last_commands": [
+      {
+        "id": "old_cmd_001",
+        "goal_id": "goal_000_001",
+        "type": "create_voxel_type",
+        "params": {
+          "voxel_type": {
+            "name": "test_voxel",
+            "id": "test_voxel"
+          }
+        },
+        "phase": "succeed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+{
+    "steps": [
+        {
+            "description": "Step 1: Initial request to build a house",
+            "request": {
+                "session_id": "sess_test_history_001",
+                "events": [
+                    {
+                        "timestamp": "123000",
+                        "type": "player_speak",
+                        "payload": {
+                            "text": "我想建一个小木屋"
+                        }
+                    }
+                ],
+                "game_state": {
+                    "timestamp": "123000",
+                    "player_abs_position": {"x": 0, "y": 0, "z": 0},
+                    "agent_abs_position": {"x": 0, "y": 0, "z": 0},
+                    "directional_voxels": [
+                        {
+                            "direction": "down",
+                            "distance": 1,
+                            "voxel_name": "Grass",
+                            "voxel_id": "1"
+                        }
+                    ],
+                    "pending_plans": [],
+                    "last_commands": []
+                }
+            }
+        },
+        {
+            "description": "Step 2: Follow-up question about materials",
+            "request": {
+                "session_id": "sess_test_history_001",
+                "events": [
+                    {
+                        "timestamp": "123100",
+                        "type": "player_speak",
+                        "payload": {
+                            "text": "我想用橡木来建造，可以吗？"
+                        }
+                    }
+                ],
+                "game_state": {
+                    "timestamp": "123100",
+                    "player_abs_position": {"x": 0, "y": 0, "z": 0},
+                    "agent_abs_position": {"x": 0, "y": 0, "z": 0},
+                    "directional_voxels": [
+                        {
+                            "direction": "down",
+                            "distance": 1,
+                            "voxel_name": "Grass",
+                            "voxel_id": "1"
+                        }
+                    ],
+                    "pending_plans": [],
+                    "last_commands": []
+                }
+            }
+        },
+        {
+            "description": "Step 3: Final confirmation and additional request",
+            "request": {
+                "session_id": "sess_test_history_001",
+                "events": [
+                    {
+                        "timestamp": "123200",
+                        "type": "player_speak",
+                        "payload": {
+                            "text": "好的，那我们开始建造吧。顺便能帮我在屋子旁边种棵树吗？"
+                        }
+                    }
+                ],
+                "game_state": {
+                    "timestamp": "123200",
+                    "player_abs_position": {"x": 0, "y": 0, "z": 0},
+                    "agent_abs_position": {"x": 0, "y": 0, "z": 0},
+                    "directional_voxels": [
+                        {
+                            "direction": "down",
+                            "distance": 1,
+                            "voxel_name": "Grass",
+                            "voxel_id": "1"
+                        }
+                    ],
+                    "pending_plans": [],
+                    "last_commands": []
+                }
+            }
+        }
+    ]
+}

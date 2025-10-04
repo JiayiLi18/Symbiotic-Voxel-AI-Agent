@@ -1,0 +1,288 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 154104369036864,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "dpmpp_sde",
+      "scheduler": "karras",
+      "denoise": 0.5000000000000001,
+      "model": [
+        "52",
+        0
+      ],
+      "positive": [
+        "58",
+        0
+      ],
+      "negative": [
+        "58",
+        1
+      ],
+      "latent_image": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "DreamShaper_8_pruned.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "text",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "38": {
+    "inputs": {
+      "text": "Texture of ...",
+      "clip": [
+        "52",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "50": {
+    "inputs": {
+      "lora_name": "Pixel Sorting.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "52": {
+    "inputs": {
+      "lora_name": "mc112blocksV1.1_.safetensors",
+      "strength_model": 1.0000000000000002,
+      "strength_clip": 1,
+      "model": [
+        "50",
+        0
+      ],
+      "clip": [
+        "50",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "54": {
+    "inputs": {
+      "image": "test_face.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "56": {
+    "inputs": {
+      "control_net_name": "control_v11p_sd15_scribble_fp16.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "58": {
+    "inputs": {
+      "strength": 0.5000000000000001,
+      "start_percent": 0.10000000000000002,
+      "end_percent": 1,
+      "positive": [
+        "38",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "control_net": [
+        "56",
+        0
+      ],
+      "image": [
+        "64",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "61": {
+    "inputs": {
+      "pixels": [
+        "81",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (Load Image))"
+    }
+  },
+  "64": {
+    "inputs": {
+      "low_threshold": 0.4,
+      "high_threshold": 0.8,
+      "image": [
+        "81",
+        0
+      ]
+    },
+    "class_type": "Canny",
+    "_meta": {
+      "title": "Canny"
+    }
+  },
+  "71": {
+    "inputs": {
+      "action": "resize only",
+      "smaller_side": 16,
+      "larger_side": 0,
+      "scale_factor": 0,
+      "resize_mode": "reduce size only",
+      "side_ratio": "1:1",
+      "crop_pad_position": 0.5,
+      "pad_feathering": 20,
+      "pixels": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "ImageResize",
+    "_meta": {
+      "title": "Image Resize"
+    }
+  },
+  "73": {
+    "inputs": {
+      "exposure": 10,
+      "image": [
+        "71",
+        0
+      ]
+    },
+    "class_type": "LayerColor: Exposure",
+    "_meta": {
+      "title": "LayerColor: Exposure"
+    }
+  },
+  "75": {
+    "inputs": {
+      "filename_prefix": "Texture",
+      "images": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "76": {
+    "inputs": {
+      "brightness": 1,
+      "contrast": 1.2000000000000002,
+      "saturation": 1.0000000000000002,
+      "image": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "LayerColor: BrightnessContrastV2",
+    "_meta": {
+      "title": "LayerColor: Brightness Contrast V2"
+    }
+  },
+  "79": {
+    "inputs": {
+      "width": 256,
+      "height": 256,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "81": {
+    "inputs": {
+      "action": "resize only",
+      "smaller_side": 256,
+      "larger_side": 0,
+      "scale_factor": 0,
+      "resize_mode": "any",
+      "side_ratio": "1:1",
+      "crop_pad_position": 0.5,
+      "pad_feathering": 0,
+      "pixels": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "ImageResize",
+    "_meta": {
+      "title": "Image Resize"
+    }
+  }
+}

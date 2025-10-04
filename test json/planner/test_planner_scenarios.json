@@ -1,0 +1,42 @@
+{
+  "session_id": "sess_planner_test_001",
+  "events": [
+    {
+      "timestamp": "150100",
+      "type": "player_speak",
+      "payload": {
+        "text": "I want to build a colorful tower with different materials. Can you help me plan this?",
+        "image": null
+      }
+    }
+  ],
+  "game_state": {
+    "timestamp": "150100",
+    "player_abs_position": {
+      "x": 12,
+      "y": 8,
+      "z": 10
+    },
+    "agent_abs_position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "directional_voxels": [
+      {
+        "direction": "front",
+        "distance": 10,
+        "voxel_name": null,
+        "voxel_id": null
+      },
+      {
+        "direction": "down",
+        "distance": 1,
+        "voxel_name": "Dirt",
+        "voxel_id": "3"
+      }
+    ],
+    "pending_plans": [],
+    "last_commands": []
+  }
+}

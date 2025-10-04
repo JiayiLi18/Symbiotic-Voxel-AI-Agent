@@ -9,59 +9,86 @@ from typing import Optional, Dict, List
 from datetime import datetime
 from PIL import Image
 import io
+import logging
+from core.models.base import VoxelFace
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 class TextureGenerator:
     def __init__(self, server_address: str = "127.0.0.1:8188"):
-        self.server_address = server_address
+        self.server_address = server_address #ComfyUI服务器地址
         self.client_id = str(uuid.uuid4())
-        self.output_tex_dir = r"C:\Aalto\S4\Graduation\AI-Agent\Assets\Resources\VoxelTextures"
-        self.workflow_path = "Minecraft_Texture_Workflow_API.json"
+        from core.tools.config import get_paths_config
+        cfg = get_paths_config()
+        self.input_tex_dir = cfg.textures_dir
+        self.output_tex_dir = cfg.textures_dir
+        self.workflow_path = "Minecraft Texture Workflow v2.json"
 
     async def generate_texture(self, 
                              tex_name: str, 
-                             pprompt: str, 
+                             pprompt: str,
                              nprompt: str = "text, blurry, watermark",
-                             denoise: float = 1.0,
-                             input_image: str = "") -> Optional[str]:
+                             reference_image: Optional[str] = None) -> str:
         """
-        生成纹理的主要方法
+        生成纹理的主要方法 - 极简版本，只处理核心纹理生成
         Args:
             tex_name: 纹理名称
             pprompt: 正面提示词
             nprompt: 负面提示词
-            denoise: 降噪强度 (0-1)
-            input_image: 可选的输入图片路径
+            reference_image: 参考图片文件名
         Returns:
-            str: 生成的纹理名称（不含扩展名）
+            str: 生成的纹理文件名
         """
         try:
+            logger.info("Starting texture generation")
+            logger.info(f"Parameters: tex_name={tex_name}")
+            logger.info(f"Prompt: {pprompt}")
+            
             # 验证输入
-            if not pprompt.strip():
-                raise ValueError("Positive prompt cannot be empty")
+            if not pprompt:
+                raise ValueError("pprompt must be provided")
             
             if not tex_name:
-                tex_name = pprompt[:20]  # 使用提示词前20个字符作为名称
+                tex_name = pprompt[:10] if pprompt else "texture"
             
             # 加载工作流
             workflow = self._load_workflow()
             
+            # 构建参考图片完整路径
+            full_reference_path = None
+            if reference_image:
+                full_reference_path = os.path.join(self.input_tex_dir, reference_image)
+                if not os.path.exists(full_reference_path):
+                    logger.warning(f"Reference image not found: {reference_image}")
+                else:
+                    logger.info(f"Using reference image: {full_reference_path}")
+            
             # 配置工作流参数
-            workflow = self._configure_workflow(
+            configured_workflow = self._configure_workflow(
                 workflow,
                 pprompt,
                 nprompt,
-                denoise,
-                input_image
+                full_reference_path
             )
             
             # 执行工作流并获取结果
-            texture_name = await self._execute_workflow(workflow, tex_name)
+            texture_name = await self._execute_workflow(
+                configured_workflow,
+                tex_name
+            )
             
-            return texture_name
+            if texture_name:
+                logger.info(f"Successfully generated texture: {texture_name}")
+                return texture_name
+            else:
+                logger.warning("No texture generated")
+                return ""
             
         except Exception as e:
-            print(f"Error generating texture: {str(e)}")
-            return None
+            logger.error(f"Error in generate_texture: {str(e)}", exc_info=True)
+            return ""
+
 
     def _load_workflow(self) -> Dict:
         """加载ComfyUI工作流"""
@@ -75,8 +102,7 @@ class TextureGenerator:
                           workflow: Dict, 
                           pprompt: str,
                           nprompt: str,
-                          denoise: float,
-                          input_image: str = "") -> Dict:
+                          reference_image: Optional[str] = None) -> Dict:
         """配置工作流参数"""
         # 设置提示词
         workflow["38"]["inputs"]["text"] = pprompt
@@ -86,15 +112,20 @@ class TextureGenerator:
         import random
         workflow["3"]["inputs"]["seed"] = random.randint(1, 1000000000)
         
-        # 配置输入图片和降噪
-        if input_image:
-            with open(input_image, "rb") as f:
+        # 配置输入图片
+        if reference_image and os.path.exists(reference_image):
+            with open(reference_image, "rb") as f:
                 image_path = self._upload_file(f)
             workflow["54"]["inputs"]["image"] = image_path
-            workflow["3"]["inputs"]["strength"] = denoise
-        else:
+            #有图片则denoise为0.5, controlnet强度为0.5
+            workflow["3"]["inputs"]["denoise"] = 0.5
+            workflow["3"]["inputs"]["latent_image"] = ["61", 0] # 使用输入图片作为latent image
+            workflow["58"]["inputs"]["strength"] = 0.5 #controlnet强度
+        else: #无输入图片则使用空白图片并把降噪强度、controlnet强度设为默认
             workflow["3"]["inputs"]["denoise"] = 1.0
-            workflow["3"]["inputs"]["strength"] = 0
+            workflow["3"]["inputs"]["latent_image"] = ["79", 0] # 使用空白图片作为latent image
+            
+            workflow["58"]["inputs"]["strength"] = 0 #controlnet强度归0
             
         return workflow
 
@@ -114,8 +145,10 @@ class TextureGenerator:
                     for image_data in images[node_id]:
                         # 保存图片
                         image = Image.open(io.BytesIO(image_data))
-                        timestamp = int(datetime.now().timestamp() * 1000)
-                        filename = f"{tex_name}-{timestamp}"
+                        # 生成3位随机编号防止重复
+                        import random
+                        random_num = random.randint(100, 999)
+                        filename = f"{tex_name}-{random_num}"
                         
                         os.makedirs(self.output_tex_dir, exist_ok=True)
                         output_path = os.path.join(
@@ -223,3 +256,11 @@ class TextureGenerator:
             f"http://{self.server_address}/view?{url_values}"
         ) as response:
             return response.read()
+
+if __name__ == "__main__":
+    import asyncio
+    
+    # 创建生成器实例（使用默认地址）
+    generator = TextureGenerator()
+    
+    # 运行测试

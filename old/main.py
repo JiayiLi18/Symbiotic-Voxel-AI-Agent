@@ -116,8 +116,7 @@ async def clear_session(session_id: str = Header(...)):
 async def generate_texture(
     image_path: str = Form(...),
     texture_name: str = Form(""),
-    positive_prompt: str = Form(...),
-    denoise_strength: float = Form(1.0),    
+    positive_prompt: str = Form(...),   
 ):
     """Standalone texture generation endpoint"""
     try:
@@ -125,8 +124,7 @@ async def generate_texture(
             image_path,
             {
                 "voxel_name": texture_name,
-                "pprompt": positive_prompt,
-                "denoise": denoise_strength
+                "pprompt": positive_prompt
             }
         )
         return {

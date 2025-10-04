@@ -1,0 +1,94 @@
+{
+    "session_id": "sess_20241201_143052_a4c2",
+    "events": [
+      {
+        "timestamp": "123040",
+        "type": "player_speak",
+        "payload": {
+          "text": "请帮我看看我刚建的这棵树，并给出建议",
+          "image": {
+              "file_path": "C:/Aalto/S4/ChromaDB-RAG/Photo_2025-07-18_03-42-01.png"
+          }
+        }
+      }
+    ],
+    "game_state": {
+      "timestamp": "123000",
+      "player_abs_position": {
+        "x": 10,
+        "y": 5,
+        "z": 8
+      },
+      "agent_abs_position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "directional_voxels": [
+          {
+              "direction": "up",
+              "distance": 10,
+              "voxel_name": null,
+              "voxel_id": null
+          },
+          {
+              "direction": "down",
+              "distance": 1,
+              "voxel_name": "Leaves",
+              "voxel_id": "6"
+          },
+          {
+              "direction": "front",
+              "distance": 10,
+              "voxel_name": null,
+              "voxel_id": null
+          },
+          {
+              "direction": "back",
+              "distance": 10,
+              "voxel_name": null,
+              "voxel_id": null
+          },
+          {
+              "direction": "left",
+              "distance": 10,
+              "voxel_name": null,
+              "voxel_id": null
+          },
+          {
+              "direction": "right",
+              "distance": 10,
+              "voxel_name": null,
+              "voxel_id": null
+          }
+      ],
+      "pending_plans": [
+        {
+          "id": "plan_001_01",
+          "action_type": "create_voxel_type",
+          "description": "Create stone brick material for castle walls",
+          "goal_id": "goal_a4b2_001",
+          "goal_label": "Build medieval castle"
+        }
+      ],
+      "last_commands": [
+        {
+          "id": "cmd_plan_001_01_001",
+          "type": "create_voxel_type",
+          "params": {
+            "voxel_name": "stone",
+            "voxel_id": "1",
+            "description": "Strong stone brick for castle construction"
+          },
+          "phase": "succeed",
+          "goal_id": "goal_a4b2_001",
+          "goal_label": "Build medieval castle",
+          "plan_id": "plan_001_01",
+          "plan_label": "Create stone brick material for castle walls"
+        }
+      ]
+    }
+  }
+  
+  
+  

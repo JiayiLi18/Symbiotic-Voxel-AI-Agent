@@ -1,48 +1,53 @@
-from .manual_prompt import VOXEL_AGENT_MANUAL, get_relevant_manual_sections
+from .manual_prompt import get_relevant_manual_sections
 from .context_prompt import generate_context_prompt
+from core.models.protocol import EventBatch
+from core.models.protocol import PlanPermission
 
-def generate_system_prompt(
-    game_state: 'GameState' = None,
-    session_state: 'SessionState' = None,
-    context: dict = None
-) -> str:
-    """生成完整的系统提示词，包含上下文信息"""
+async def generate_executor_system_prompt(plan_permission: PlanPermission) -> str:
+    """生成 Executor 的系统提示词"""
     
-    base_prompt = """You are an AI assistant specialized in Minecraft-style voxel world creation and management.
-Your main responsibilities are:
-1. Help users create and modify voxels
-2. Generate appropriate textures
-3. Build structures
-4. Remember important user preferences and themes
-
-Available tools:
-{available_tools}
-"""
-
-    # 添加相关的手册部分
-    if context:
-        manual_sections = get_relevant_manual_sections(context)
-    else:
-        manual_sections = VOXEL_AGENT_MANUAL  # 如果没有上下文，使用完整手册
-
-    # 添加上下文信息（如果有）
-    context_info = ""
-    if game_state and session_state:
-        context_info = f"""
-Current Context:
-{generate_context_prompt(game_state, session_state)}
-"""
+    # 1. 生成 manual prompt（Executor专用手册）
+    manual_prompt = get_relevant_manual_sections([], is_planner=False)
     
-    return f"""
-{base_prompt}
+    # 2. 生成 context prompt
+    context_prompt = await generate_context_prompt(plan_permission)
+    
+    # 3. 组合所有信息
+    return f"""You are an AI Executor for a voxel-based game world.
 
-{manual_sections}
+{manual_prompt}
 
-{context_info}
+{context_prompt}
 
-When responding:
-1. Analyze the user's request carefully
-2. Consider the current game state and context
-3. Use appropriate tools to fulfill the request
-4. Keep track of important information
+## Your Task
+Convert the approved plans into executable commands. Each command must have:
+- id: Unique command identifier  
+- type: Command type matching the plan's action_type
+- params: Specific parameters needed for execution
+
+## Important
+- Execute ONLY approved plans, ignore rejected ones
+- Generate commands with proper parameters based on game state
+- Use directional voxel data for precise positioning
+- Extract material names and properties from plan descriptions
+- Follow dependency order when generating commands
+- Be creative in filling parameter details from descriptions
+
+Return ONLY valid JSON response with commands array."""
+
+async def generate_planner_system_prompt(event_batch: EventBatch) -> str:
+    """生成 Planner 的系统提示词 - KISS原则:只负责组装"""
+    
+    # 1. 生成 manual prompt（根据事件类型选择相关手册，包含planner部分）
+    manual_prompt = get_relevant_manual_sections(event_batch.events, is_planner=True)
+    
+    # 2. 生成 context prompt
+    context_prompt = await generate_context_prompt(event_batch)
+    
+    # 3. 组合所有信息
+    return f"""You are an AI Planner for a voxel-based game world.
+
+{manual_prompt}
+
+{context_prompt}
 """
