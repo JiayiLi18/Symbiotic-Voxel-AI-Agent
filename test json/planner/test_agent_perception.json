@@ -12,26 +12,6 @@
           {
             "file_path": "agent_snapshot_back.png"
           }
-        ],
-        "nearby_voxels": [
-          {
-            "voxel_id": "3",
-            "voxel_name": "Dirt",
-            "position": {
-              "x": 1,
-              "y": 0,
-              "z": 0
-            }
-          },
-          {
-            "voxel_id": "6",
-            "voxel_name": "Leaves",
-            "position": {
-              "x": 2,
-              "y": 1,
-              "z": 0
-            }
-          }
         ]
       }
     }
@@ -68,7 +48,80 @@
         "voxel_id": "3"
       }
     ],
-    "pending_plans": [],
-    "last_commands": []
+    "nearby_voxels": [
+      {
+        "voxel_id": "3",
+        "voxel_name": "Dirt",
+        "position": {
+          "x": 1,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "voxel_id": "6",
+        "voxel_name": "Leaves",
+        "position": {
+          "x": 2,
+          "y": 1,
+          "z": 0
+        }
+      },
+      {
+        "voxel_id": "3",
+        "voxel_name": "Dirt",
+        "position": {
+          "x": 0,
+          "y": -1,
+          "z": 0
+        }
+      }
+    ],
+    "pending_plans": [
+      {
+        "id": "plan_001_01",
+        "goal_id": "goal_perception_001",
+        "goal_label": "analyze nearby environment",
+        "action_type": "place_block",
+        "description": "place dirt block to mark the area",
+        "depends_on": null
+      },
+      {
+        "id": "plan_001_02", 
+        "goal_id": "goal_perception_001",
+        "goal_label": "analyze nearby environment",
+        "action_type": "continue_plan",
+        "description": "assess the structure and plan next steps",
+        "depends_on": ["plan_001_01"]
+      }
+    ],
+    "last_commands": [
+      {
+        "id": "cmd_001_01",
+        "goal_id": "goal_perception_001",
+        "goal_label": "analyze nearby environment",
+        "type": "place_block",
+        "params": {
+          "direction": "front",
+          "distance": 1,
+          "count": 1,
+          "voxel_name": "Dirt",
+          "voxel_id": "3"
+        },
+        "phase": "done"
+      },
+      {
+        "id": "cmd_001_02",
+        "goal_id": "goal_perception_001", 
+        "goal_label": "analyze nearby environment",
+        "type": "continue_plan",
+        "params": {
+          "current_summary": "marked area with dirt block, ready to analyze structure",
+          "possible_next_steps": "examine nearby leaves and plan building strategy",
+          "request_snapshot": true
+        },
+        "phase": "pending"
+      }
+    ]
   }
 }

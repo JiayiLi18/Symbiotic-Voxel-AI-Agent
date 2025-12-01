@@ -45,11 +45,6 @@ class VoxelModifier:
                 if new_type.description.strip():
                     updates["description"] = new_type.description
 
-            # texture：仅在提供非空时覆盖
-            if getattr(new_type, "texture", None):
-                if new_type.texture.strip():
-                    updates["texture"] = new_type.texture
-
             # face_textures：逐面合并；若未提供或为空则保留原值
             if isinstance(getattr(new_type, "face_textures", None), list) and new_type.face_textures:
                 merged_faces: list = []

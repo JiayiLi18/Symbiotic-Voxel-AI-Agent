@@ -5,7 +5,6 @@
         {
             "id": 0,
             "name": "Air",
-            "texture": "",
             "face_textures": [
                 "",
                 "",
@@ -25,7 +24,6 @@
         {
             "id": 1,
             "name": "Draft",
-            "texture": "",
             "face_textures": [
                 "",
                 "",
@@ -45,14 +43,13 @@
         {
             "id": 2,
             "name": "Base",
-            "texture": "Texture-base.png",
             "face_textures": [
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png"
             ],
             "base_color": [
                 255,
@@ -65,7 +62,6 @@
         {
             "id": 3,
             "name": "Dirt",
-            "texture": "",
             "face_textures": [
                 "Texture-dirt-2.png",
                 "Texture-dirt-2.png",
@@ -85,14 +81,13 @@
         {
             "id": 4,
             "name": "Mushroom Meat",
-            "texture": "Texture of a lighter-1752660350840.png",
             "face_textures": [
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png"
             ],
             "base_color": [
                 255,
@@ -105,14 +100,13 @@
         {
             "id": 6,
             "name": "Leaves",
-            "texture": "Texture of vibrant g-1752799452580.png",
             "face_textures": [
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png"
             ],
             "base_color": [
                 255,
@@ -125,14 +119,13 @@
         {
             "id": 7,
             "name": "TreeTrunk",
-            "texture": "Texture of rough bro-1752799402735.png",
             "face_textures": [
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png"
             ],
             "base_color": [
                 255,

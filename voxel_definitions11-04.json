@@ -1,0 +1,234 @@
+{
+    "next_id": 13,
+    "revision": "2025-11-04T22:23:07.5600838Z",
+    "voxels": [
+        {
+            "id": 0,
+            "name": "Air",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Air block (transparent).",
+            "is_transparent": true
+        },
+        {
+            "id": 1,
+            "name": "Base",
+            "face_textures": [
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png",
+                "Texture-base.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A base block.",
+            "is_transparent": false
+        },
+        {
+            "id": 2,
+            "name": "Draft",
+            "face_textures": [
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A block for you to test. Try adding color and texture to it.",
+            "is_transparent": false
+        },
+        {
+            "id": 3,
+            "name": "Direction",
+            "face_textures": [
+                "+X.png",
+                "-X.png",
+                "+Y.png",
+                "-Y.png",
+                "+Z.png",
+                "-Z.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A block with direction indication",
+            "is_transparent": false
+        },
+        {
+            "id": 4,
+            "name": "Dirt",
+            "face_textures": [
+                "Texture-dirt-2.png",
+                "Texture-dirt-2.png",
+                "Texture-dirt-1.png",
+                "Texture-dirt-0.png",
+                "Texture-dirt-2.png",
+                "Texture-dirt-2.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Rich, moist soil with small pebbles",
+            "is_transparent": false
+        },
+        {
+            "id": 5,
+            "name": "Mushroom Meat",
+            "face_textures": [
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png",
+                "Texture of a lighter-1752660350840.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A lighter version of the mushroom",
+            "is_transparent": false
+        },
+        {
+            "id": 6,
+            "name": "Leaves",
+            "face_textures": [
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png",
+                "Texture of vibrant g-1752799452580.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Vibrant green leaves with light rays",
+            "is_transparent": false
+        },
+        {
+            "id": 7,
+            "name": "TreeTrunk",
+            "face_textures": [
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png",
+                "Texture of rough bro-1752799402735.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "Sturdy trunk for trees",
+            "is_transparent": false
+        },
+        {
+            "id": 9,
+            "name": "oak wood",
+            "face_textures": [
+                "121+60+17.png",
+                "139+69+19.png",
+                "139+69+19.png",
+                "96+47+13.png",
+                "139+69+19.png",
+                "139+69+19.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "",
+            "is_transparent": false
+        },
+        {
+            "id": 10,
+            "name": "rainbow",
+            "face_textures": [
+                "255+0+0.png",
+                "0+0+255.png",
+                "0+255+0.png",
+                "255+255+0.png",
+                "128+0+128.png",
+                "255+165+0.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "",
+            "is_transparent": false
+        },
+        {
+            "id": 13,
+            "name": "TeStTeStSfDf",
+            "face_textures": [
+                "171+255+0.png",
+                "200+200+200.png",
+                "200+200+200.png",
+                "200+200+200.png",
+                "200+11+11.png",
+                "200+200+200.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "",
+            "is_transparent": false
+        },
+        {
+            "id": 8,
+            "name": "Mystic Stone",
+            "face_textures": [
+                "255+182+193.png",
+                "255+182+193.png",
+                "255+182+193.png",
+                "255+182+193.png",
+                "255+182+193.png",
+                "255+182+193.png"
+            ],
+            "base_color": [
+                255,
+                255,
+                255
+            ],
+            "description": "A newly defined voxel type with vibrant Coral color",
+            "is_transparent": false
+        }
+    ]
+}

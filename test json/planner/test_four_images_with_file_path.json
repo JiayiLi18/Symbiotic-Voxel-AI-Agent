@@ -1,0 +1,56 @@
+{
+  "session_id": "sess_test_four_images_filepath",
+  "events": [
+    {
+      "timestamp": "120000",
+      "type": "agent_perception",
+      "payload": {
+        "image": [
+          {
+            "file_path": "AgentCam_North_ 11-03_21-04-42.png"
+          },
+          {
+            "file_path": "AgentCam_North_ 11-05_00-23-18.png"
+          },
+          {
+            "file_path": "Photo_2025-07-18_03-42-01.png"
+          },
+          {
+            "file_path": "AgentCam_East_ 11-05_00-23-18.png"
+          }
+        ]
+      }
+    }
+  ],
+  "game_state": {
+    "timestamp": "120000",
+    "player_abs_position": {
+      "x": 10,
+      "y": 5,
+      "z": 8
+    },
+    "agent_abs_position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "directional_voxels": [
+      {
+        "direction": "up",
+        "distance": 10,
+        "voxel_name": null,
+        "voxel_id": null
+      },
+      {
+        "direction": "down",
+        "distance": 1,
+        "voxel_name": "Dirt",
+        "voxel_id": "3"
+      }
+    ],
+    "nearby_voxels": [],
+    "pending_plans": [],
+    "last_commands": []
+  }
+}
+

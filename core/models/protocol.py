@@ -1,5 +1,5 @@
 # core/models/protocol.py
-# Unity通信协议模型 - 定义与Unity之间的数据交换格式
+# Unity communication protocol models - define data exchange format with Unity
 
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional, TYPE_CHECKING, Union, Literal
@@ -15,28 +15,28 @@ if TYPE_CHECKING:
     from core.models.game_state import GameState
 
 class EventBatch(BaseModel):
-    """事件批次模型 - 简化版本，直接使用GameState
+    """Event batch model - simplified version, directly uses GameState
     
-    主要用途:
-    1. 在API层面批量接收和处理事件
-    2. 维护事件处理的会话上下文
+    Main purposes:
+    1. Batch receive and process events at API level
+    2. Maintain event processing session context
     
-    属性:
-        session_id (str): 会话ID，用于关联到特定的游戏会话
-        events (List[Event]): 需要处理的事件列表
-        game_state (Optional[GameState]): 当前游戏状态（Unity直接发送此格式）
+    Attributes:
+        session_id (str): Session ID for associating with specific game session
+        events (List[Event]): List of events to be processed
+        game_state (Optional[GameState]): Current game state (Unity sends this format directly)
     """
     session_id: str
     events: List[Event]
-    game_state: Optional['GameState'] = None  # Unity直接发送GameState格式
+    game_state: Optional['GameState'] = None  # Unity sends GameState format directly
 
 class PlanPermission(BaseModel):
-    """Unity返回的计划许可模型
+    """Unity returned plan permission model
     
-    当玩家同意某些计划后，Unity发送此数据结构
-    包含同意的计划列表和拒绝的计划及改进理由/补充信息
-    补充信息帮助AI理解玩家的需求和意图，或者根据改进建议使用continue_plan重新/继续计划
-    使用统一ID格式
+    When player agrees to certain plans, Unity sends this data structure
+    Contains approved plan list and rejected plans with improvement reasons/additional information
+    Additional information helps AI understand player needs and intentions, or use continue_plan to re/continue planning based on improvement suggestions
+    Uses unified ID format
     """
     session_id: str = Field(..., description="Session ID in format: sess_<timestamp>_<random>")
     goal_id: str = Field(..., description="Goal ID in format: goal_<session_suffix>_<sequence>")
@@ -46,16 +46,16 @@ class PlanPermission(BaseModel):
     game_state: Optional['GameState'] = Field(None, description="当前游戏状态")
 
 class PlanCommandMapping(BaseModel):
-    """Plan-Command映射关系
+    """Plan-Command mapping relationship
     
-    存储计划和命令之间的对应关系
+    Stores correspondence between plans and commands
     """
     session_id: str
     goal_id: str
     mappings: Dict[str, Dict] = Field(default_factory=dict, description="command_id -> plan_info 的映射")
     
     def add_mapping(self, command_id: str, plan_id: int, plan_description: str, plan_action_type: str):
-        """添加命令到计划的映射"""
+        """Add command to plan mapping"""
         self.mappings[command_id] = {
             "plan_id": plan_id,
             "plan_description": plan_description,
@@ -63,13 +63,13 @@ class PlanCommandMapping(BaseModel):
         }
     
     def get_plan_info(self, command_id: str) -> Optional[Dict]:
-        """根据命令ID获取对应的计划信息"""
+        """Get corresponding plan information based on command ID"""
         return self.mappings.get(command_id)
 
 class PlanCommandRegistry:
-    """Plan-Command注册表
+    """Plan-Command registry
     
-    管理所有会话的Plan-Command映射关系
+    Manages Plan-Command mapping relationships for all sessions
     """
     
     def __init__(self):
@@ -77,32 +77,32 @@ class PlanCommandRegistry:
         self._approved_plans: Dict[str, List[Plan]] = {}  # session_id -> approved_plans
     
     def register_plan_permission(self, permission: PlanPermission) -> PlanCommandMapping:
-        """注册计划许可，创建Plan-Command映射准备
+        """Register plan permission, create Plan-Command mapping preparation
         
         Args:
-            permission: Unity返回的计划许可
+            permission: Plan permission returned by Unity
             
         Returns:
-            创建的映射对象，等待Command填充
+            Created mapping object, waiting for Command population
         """
         mapping = PlanCommandMapping(
             session_id=permission.session_id,
             goal_id=permission.goal_id
         )
         
-        # 存储批准的计划信息，供后续映射使用
+        # Store approved plan information for subsequent mapping
         self._approved_plans[permission.session_id] = permission.approved_plans
         
         self.mappings[permission.session_id] = mapping
         return mapping
     
     def map_command_to_plan(self, session_id: str, command_id: str, plan_id: int) -> bool:
-        """将命令映射到计划
+        """Map command to plan
         
         Args:
-            session_id: 会话ID
-            command_id: 命令ID
-            plan_id: 计划ID
+            session_id: Session ID
+            command_id: Command ID
+            plan_id: Plan ID
         """
         if session_id not in self.mappings or session_id not in self._approved_plans:
             return False
@@ -110,7 +110,7 @@ class PlanCommandRegistry:
         mapping = self.mappings[session_id]
         approved_plans = self._approved_plans[session_id]
         
-        # 从已批准的计划中找到对应的plan信息
+        # Find corresponding plan information from approved plans
         for plan in approved_plans:
             if plan.id == plan_id:
                 mapping.add_mapping(
@@ -124,28 +124,28 @@ class PlanCommandRegistry:
         return False
     
     def get_plan_info_for_command(self, session_id: str, command_id: str) -> Optional[Dict]:
-        """根据会话ID和命令ID获取计划信息"""
+        """Get plan information based on session ID and command ID"""
         if session_id not in self.mappings:
             return None
         
         return self.mappings[session_id].get_plan_info(command_id)
     
     def clear_session_mappings(self, session_id: str):
-        """清除会话的映射关系"""
+        """Clear session mapping relationships"""
         if session_id in self.mappings:
             del self.mappings[session_id]
 
 class CommandBatch(BaseModel):
-    """命令批次模型，用于批量发送多个命令
+    """Command batch model for batch sending multiple commands
     
-    主要用途:
-    1. 批量将多个相关命令发送给Unity
-    2. 保持命令执行的会话一致性
+    Main purposes:
+    1. Batch send multiple related commands to Unity
+    2. Maintain command execution session consistency
     
-    属性:
-        session_id (str): 会话ID，与EventBatch中的session_id对应
-        goal_id (str): 目标ID，与PlannerResponse中的goal_id对应
-        commands (List[Command]): 需要执行的命令列表
+    Attributes:
+        session_id (str): Session ID, corresponds to session_id in EventBatch
+        goal_id (str): Goal ID, corresponds to goal_id in PlannerResponse
+        commands (List[Command]): List of commands to execute
     """
     session_id: str
     goal_id: str = Field(..., description="Goal ID in format: goal_<session_suffix>_<sequence>")
@@ -153,41 +153,41 @@ class CommandBatch(BaseModel):
 
 class SimplePlannerResponse(BaseModel):
     """Simplified response from LLM using simple numeric IDs, converted to full format by Python"""
-    goal_label: str = Field(..., description="Human-readable goal description")
-    talk_to_player: str = Field(..., description="Immediate response to show to player")
-    plan: List[Plan] = Field(default=[], description="Steps with simple numeric IDs (1, 2, 3...)")
+    goal_label: str = Field(..., description="One short line describing the goal.")
+    talk_to_player: str = Field(..., description="Friendly reply to player, 1-2 short sentences. No technical details.")
+    plan: List[Plan] = Field(default=[], description="Array of plan steps. Each step uses simple numeric IDs ('1','2','3'...).")
 
 class PlannerResponse(BaseModel):
-    """Planner的完整响应 - 包含立即对话和后续计划
+    """Planner's complete response - includes immediate dialogue and subsequent plans
     
-    统一ID格式架构：
-    1. goal_id: 整体目标的唯一标识符，格式: goal_<session_suffix>_<sequence>
-    2. goal_label: 整体目标的描述性标签（用户可读）
-    3. talk_to_player: 立即返回给玩家的对话内容（展示计划，获得许可）
-    4. plan: 后续要执行的具体步骤（可能为空，纯聊天时）
+    Unified ID format architecture:
+    1. goal_id: Unique identifier for overall goal, format: goal_<session_suffix>_<sequence>
+    2. goal_label: Descriptive label for overall goal (user-readable)
+    3. talk_to_player: Immediate dialogue content returned to player (show plans, get permission)
+    4. plan: Specific steps to execute subsequently (may be empty for pure chat)
     
-    流程：
-    - 用户说话 → Planner生成 {talk_content + plan}
-    - talk_content立即显示给玩家
-    - 如果玩家同意 → 执行plan中的步骤
-    - 如果玩家不同意 → 重新规划
+    Process:
+    - User speaks → Planner generates {talk_content + plan}
+    - talk_content immediately shown to player
+    - If player agrees → execute steps in plan
+    - If player disagrees → replan
     """
     session_id: str
     goal_id: str = Field(..., description="Goal ID in format: goal_<session_suffix>_<sequence>")
-    goal_label: str = Field(..., description="Human-readable goal description")
-    talk_to_player: str = Field(default="Let me help you with that.", description="Immediate response to show to player")
+    goal_label: str = Field(..., description="One short line describing the goal.")
+    talk_to_player: str = Field(default="Let me help you with that.", description="Friendly reply to player, 1-2 short sentences. No technical details.")
     plan: List[Plan] = Field(default=[], description="Subsequent steps to execute (can be empty for pure chat)")
 
 class SimpleCommand(BaseModel):
-    """简化的命令模型，用于LLM输出，不包含ID字段
+    """Simplified command model for LLM output, does not include ID field
     
-    主要用途:
-    1. LLM输出的简化命令格式
-    2. 由Python自动生成ID并转换为完整Command
+    Main purposes:
+    1. Simplified command format output by LLM
+    2. Python automatically generates ID and converts to complete Command
     
-    属性:
-        type (str): 命令类型
-        params: 命令的具体参数
+    Attributes:
+        type (str): Command type
+        params: Specific parameters for the command
     """
     type: Literal["create_voxel_type", "update_voxel_type", "place_block", "destroy_block", "move_to", "continue_plan"]
     params: Union[
@@ -197,45 +197,45 @@ class SimpleCommand(BaseModel):
         DestroyBlockParams,
         MoveToParams,
         ContinuePlanParams,
-        Dict[str, Any]  # 保持向后兼容性
+        Dict[str, Any]  # Maintain backward compatibility
     ]
 
 class SimpleExecutorResponse(BaseModel):
-    """Executor的简化响应模型 - 包含生成的命令列表
+    """Executor's simplified response model - contains generated command list
     
-    主要用途:
-    1. LLM输出的简化格式，不包含ID
-    2. 由Python自动生成ID并转换为完整CommandBatch
+    Main purposes:
+    1. Simplified format output by LLM, does not include ID
+    2. Python automatically generates ID and converts to complete CommandBatch
     
-    属性:
-        commands (List[SimpleCommand]): 需要执行的简化命令列表
+    Attributes:
+        commands (List[SimpleCommand]): List of simplified commands to execute
     """
     commands: List[SimpleCommand] = Field(..., description="Commands to execute")
 
 class PlannerTestResponse(BaseModel):
-    """Planner测试响应模型，包含对话和计划以及调试信息
+    """Planner test response model, includes dialogue and plans as well as debug information
     
-    主要用途:
-    1. 用于/planner/test端点的响应
-    2. 包含生成的对话内容、计划和调试信息
+    Main purposes:
+    1. Response for /planner/test endpoint
+    2. Contains generated dialogue content, plans and debug information
     
-    属性:
-        session_id (str): 会话ID
-        response (PlannerResponse): 生成的完整响应（对话+计划）
-        debug_info (Optional[Dict]): 调试信息，包含system_prompt等
+    Attributes:
+        session_id (str): Session ID
+        response (PlannerResponse): Generated complete response (dialogue + plans)
+        debug_info (Optional[Dict]): Debug information, includes system_prompt etc.
     """
     response: PlannerResponse
     debug_info: Optional[Dict[str, Any]] = None
 
-# 解决 Pydantic 循环引用问题
+# Solve Pydantic circular reference issues
 def rebuild_models():
-    """重建模型以解决循环引用"""
+    """Rebuild models to solve circular references"""
     try:
         from core.models.game_state import GameState
         EventBatch.model_rebuild()
         PlanPermission.model_rebuild()
     except ImportError:
-        pass  # 如果 GameState 还未定义，跳过
+        pass  # If GameState not yet defined, skip
 
-# 调用重建
+# Call rebuild
 rebuild_models()

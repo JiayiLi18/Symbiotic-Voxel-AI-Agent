@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from .base import JSONDatabase
 from core.models.base import CreateVoxelTypeParams as VoxelTypeParams
-from core.tools.texture.solid_color import ensure_solid_color_texture_from_name
+from core.tools.texture.solid_color import normalize_texture_name
 import logging
 
 logger = logging.getLogger(__name__)
@@ -41,32 +41,21 @@ class VoxelDatabase(JSONDatabase):
         new_voxel = {
             "id": voxel_id,
             "name": voxel_type.name,
-            "texture": voxel_type.texture,
             "face_textures": voxel_type.face_textures,
             "base_color": [255, 255, 255],  # 默认白色
             "description": voxel_type.description,
             "is_transparent": False  # 默认不透明
         }
 
-        # 如果未提供纹理或提供的是颜色命名纹理，则根据名称生成 16x16 纯色纹理并填充
+        # 处理 face_textures - 只规范化纹理名称，不生成文件
         try:
-            # 处理整体 texture
-            if new_voxel.get("texture"):
-                try:
-                    normalized = ensure_solid_color_texture_from_name(new_voxel["texture"])  # type: ignore
-                    new_voxel["texture"] = normalized
-                except Exception:
-                    pass  # 如果不是颜色命名，保持原样
-            # 处理 face_textures
             faces = new_voxel.get("face_textures") or []
             if isinstance(faces, list) and faces:
                 normalized_faces = []
                 for f in faces[:6]:
                     if f:
-                        try:
-                            normalized_faces.append(ensure_solid_color_texture_from_name(f))
-                        except Exception:
-                            normalized_faces.append(f)
+                        # 只规范化名称，不生成文件
+                        normalized_faces.append(normalize_texture_name(f))
                     else:
                         normalized_faces.append("")
                 # 补全到6个
@@ -74,10 +63,10 @@ class VoxelDatabase(JSONDatabase):
                     normalized_faces.append("")
                 new_voxel["face_textures"] = normalized_faces
             else:
-                # 如果未提供任何面纹理且未提供整体纹理，则不做处理（保持空），由上层决定
-                pass
+                # 如果未提供任何面纹理，确保有6个空字符串
+                new_voxel["face_textures"] = [""] * 6
         except Exception as e:
-            logger.warning(f"Failed to ensure solid color texture: {e}")
+            logger.warning(f"Failed to normalize texture names: {e}")
         
         voxels.append(new_voxel)
         
@@ -100,29 +89,22 @@ class VoxelDatabase(JSONDatabase):
         for voxel in voxels:
             if voxel.get('id') == voxel_id:
                 voxel.update(updates)
-                # 如有需要，根据名称生成纯色纹理
+                # 处理 face_textures - 只规范化纹理名称，不生成文件
                 try:
-                    if voxel.get("texture"):
-                        try:
-                            voxel["texture"] = ensure_solid_color_texture_from_name(voxel["texture"])  # type: ignore
-                        except Exception:
-                            pass
                     faces = voxel.get("face_textures") or []
                     if isinstance(faces, list) and faces:
                         normalized_faces = []
                         for f in faces[:6]:
                             if f:
-                                try:
-                                    normalized_faces.append(ensure_solid_color_texture_from_name(f))
-                                except Exception:
-                                    normalized_faces.append(f)
+                                # 只规范化名称，不生成文件
+                                normalized_faces.append(normalize_texture_name(f))
                             else:
                                 normalized_faces.append("")
                         while len(normalized_faces) < 6:
                             normalized_faces.append("")
                         voxel["face_textures"] = normalized_faces
                 except Exception as e:
-                    logger.warning(f"Failed to ensure solid color texture on update: {e}")
+                    logger.warning(f"Failed to normalize texture names on update: {e}")
                 
                 # 更新revision时间戳
                 updated_data = {

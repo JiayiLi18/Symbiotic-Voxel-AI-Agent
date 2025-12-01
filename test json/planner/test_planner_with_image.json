@@ -80,11 +80,9 @@
             "voxel_id": "1",
             "description": "Strong stone brick for castle construction"
           },
-          "phase": "succeed",
+          "phase": "done",
           "goal_id": "goal_a4b2_001",
-          "goal_label": "Build medieval castle",
-          "plan_id": "plan_001_01",
-          "plan_label": "Create stone brick material for castle walls"
+          "goal_label": "Build medieval castle"
         }
       ]
     }

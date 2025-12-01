@@ -1,16 +1,33 @@
 {
-  "session_id": "session_20251114_003904",
-  "events": [
-    {
-      "timestamp": "000007",
-      "type": "player_speak",
-      "payload": {
-        "text": "hello!",
-        "image": null
-      }
-    }
-  ],
-  "game_state": {
+    "session_id": "sess_complete_test_001",
+    "goal_id": "goal_003_001",
+    "goal_label": "Nearby activities",
+    "approved_plans": [
+        {
+            "id": "plan_003_01",
+            "action_type": "place_block",
+            "description": "Place 2 Rainbow Blocks starting at start_offset {1,2,1}, expand RIGHT to create a small shared platform at the player's height.",
+            "depends_on": null
+        },
+        {
+            "id": "plan_003_02",
+            "action_type": "place_block",
+            "description": "Place a 2-high Rainbow pillar at start_offset {2,2,1}, expand UP to give a visible step/marker beside the platform.",
+            "depends_on": [
+                "plan_003_01"
+            ]
+        },
+        {
+            "id": "plan_003_03",
+            "action_type": "continue_plan",
+            "description": "Ask whether to move next to the player, add decorations, or remove the build.",
+            "depends_on": [
+                "plan_003_02"
+            ]
+        }
+    ],
+    "additional_info": "Instead of using rainbow blocks, use wood blocks",
+    "game_state": {
     "timestamp": "000206",
     "player_abs_position": {
       "x": 30,
@@ -282,4 +299,5 @@
       }
     ]
   }
-}
+  }
+  

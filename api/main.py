@@ -33,12 +33,7 @@ app.add_middleware(
 # 导入所需工具
 import os
 
-# 初始化数据库工具（集中路径配置）
-from core.tools.config import get_paths_config
-paths_cfg = get_paths_config()
-voxel_db_path = paths_cfg.voxel_db_path
-
-# 初始化其他工具
+# 初始化工具
 session_manager = SessionTool()
 texture_generator = TextureGenerator()
 
@@ -51,6 +46,13 @@ async def handle_events(batch: EventBatch):
     同时处理会话历史记录的更新。
     """
     try:
+        # 记录完整的请求JSON
+        import json
+        logger.info("=" * 80)
+        logger.info("Received full JSON:")
+        logger.info(json.dumps(batch.dict(), indent=2, ensure_ascii=False))
+        logger.info("=" * 80)
+        
         # 确保会话存在（会自动处理空的session_id）
         session = session_manager.get_or_create_session(batch.session_id)
         batch.session_id = session.session_id  # 更新batch中的session_id（如果是新生成的）

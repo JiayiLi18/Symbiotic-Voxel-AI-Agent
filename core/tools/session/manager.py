@@ -27,10 +27,24 @@ class SessionManager:
         if session_id not in self.sessions:
             self.sessions[session_id] = SessionState(
                 session_id=session_id,
-                conversation_history=[]
+                conversation_history=[],
+                goal_sequence=0
             )
         
         return self.sessions[session_id]
+    
+    def get_next_goal_sequence(self, session_id: str) -> int:
+        """获取并递增goal序列号
+        
+        Args:
+            session_id: 会话ID
+            
+        Returns:
+            int: 下一个goal序列号（从1开始）
+        """
+        session = self.get_or_create_session(session_id)
+        session.goal_sequence += 1
+        return session.goal_sequence
     
     def get_history(self, session_id: str) -> List[Dict[str, str]]:
         """获取会话历史记录，包含消息类型信息"""
@@ -115,7 +129,8 @@ class SessionManager:
         if session is None:
             session = SessionState(
                 session_id=session_id,
-                conversation_history=[]
+                conversation_history=[],
+                goal_sequence=0
             )
             self.sessions[session_id] = session
         

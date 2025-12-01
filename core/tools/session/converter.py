@@ -49,7 +49,7 @@ class SessionDataConverter:
             return False
         
         # 只保留有意义的事件
-        meaningful_events = ["player_build", "voxel_type_created", "voxel_type_modified", "agent_continue_plan", "agent_perception"]
+        meaningful_events = ["player_build", "voxel_type_created", "voxel_type_updated", "agent_continue_plan", "agent_perception"]
         return event.type in meaningful_events
     
     @staticmethod
@@ -64,11 +64,19 @@ class SessionDataConverter:
         """
         if event.type == "player_build":
             if isinstance(event.payload, PlayerBuildPayload):
-                pos = event.payload.voxel_instance.position
-                content = f"Player placed {event.payload.voxel_instance.voxel_name} at ({pos.x}, {pos.y}, {pos.z})"
+                # Process multiple voxel instances
+                operations = []
+                for voxel_instance in event.payload.voxel_instances:
+                    pos = voxel_instance.position
+                    if voxel_instance.voxel_id == "0" and voxel_instance.voxel_name == "air":
+                        operations.append(f"deleted at ({pos.x}, {pos.y}, {pos.z})")
+                    else:
+                        operations.append(f"placed {voxel_instance.voxel_name} at ({pos.x}, {pos.y}, {pos.z})")
+                
+                content = f"Player: {', '.join(operations)}"
                 payload = {
-                    "voxel_name": event.payload.voxel_instance.voxel_name,
-                    "position": [pos.x, pos.y, pos.z]
+                    "operation_count": len(event.payload.voxel_instances),
+                    "operations": [{"voxel_name": vi.voxel_name, "voxel_id": vi.voxel_id, "position": [vi.position.x, vi.position.y, vi.position.z]} for vi in event.payload.voxel_instances]
                 }
             else:
                 content = "Player placed a block"
@@ -82,10 +90,17 @@ class SessionDataConverter:
                 content = "Created new voxel type"
                 payload = None
         
-        elif event.type == "voxel_type_modified":
+        elif event.type == "voxel_type_updated":
             if isinstance(event.payload, VoxelTypeUpdatedPayload):
-                content = f"Modified voxel type: {event.payload.voxel_id}"
-                payload = {"voxel_id": event.payload.voxel_id}
+                # Check if this is a deletion (new_voxel_type is None)
+                if event.payload.new_voxel_type is None:
+                    content = f"Deleted voxel type: {event.payload.voxel_id}"
+                else:
+                    content = f"Modified voxel type: {event.payload.voxel_id} to {event.payload.new_voxel_type.name}"
+                payload = {
+                    "voxel_id": event.payload.voxel_id,
+                    "is_deletion": event.payload.new_voxel_type is None
+                }
             else:
                 content = "Modified voxel type"
                 payload = None
@@ -112,14 +127,9 @@ class SessionDataConverter:
                 image_placeholder = SessionDataConverter.format_image_placeholder(event.payload.image)
                 image_part = f" with {image_placeholder}" if image_placeholder else ""
                 
-                # 处理附近体素信息
-                voxel_count = len(event.payload.nearby_voxels) if event.payload.nearby_voxels else 0
-                voxel_part = f" and {voxel_count} nearby voxels" if voxel_count > 0 else ""
-                
-                content = f"Agent perception{image_part}{voxel_part}"
+                content = f"Agent perception{image_part}"
                 payload = {
-                    "has_images": bool(event.payload.image),
-                    "nearby_voxel_count": voxel_count
+                    "has_images": bool(event.payload.image)
                 }
             else:
                 content = "Agent perception"
@@ -182,7 +192,8 @@ class SessionDataConverter:
         if session_state is None:
             session_state = SessionState(
                 session_id=event_batch.session_id,
-                conversation_history=[]
+                conversation_history=[],
+                goal_sequence=0
             )
         
         # 获取世界时间戳

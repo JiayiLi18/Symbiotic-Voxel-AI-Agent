@@ -1,6 +1,7 @@
 from core.models.game_state import GameState
 from core.tools.session import SessionTool
 from core.models.protocol import EventBatch, PlannerResponse, SimplePlannerResponse
+from pydantic import ValidationError
 from core.models.base import Plan, Image, Event
 from core.prompts.system_prompt import generate_planner_system_prompt
 from core.schemas.openai_schemas import get_planner_response_schema
@@ -11,12 +12,23 @@ from openai import AsyncOpenAI
 import os
 from dotenv import load_dotenv
 from typing import List, Dict, Any, Optional
+import logging
 
 # 确保环境变量已加载
 load_dotenv()
 
+# 初始化logger
+logger = logging.getLogger(__name__)
+
 # 延迟初始化全局变量（避免导入时的环境变量问题）
 openai_client = None
+# 在planner内部跟踪每个session的goal序号，避免API侧改动
+_session_goal_sequences: Dict[str, int] = {}
+
+def _next_goal_sequence(session_id: str) -> int:
+    seq = _session_goal_sequences.get(session_id, 0) + 1
+    _session_goal_sequences[session_id] = seq
+    return seq
 
 def _ensure_initialized():
     """确保全局变量已初始化"""
@@ -89,12 +101,19 @@ def _build_openai_messages(user_text: str, images: List[Image], system_prompt: s
         })
     
     # 添加图片内容
-    for image in images:
+    for idx, image in enumerate(images):
         try:
             image_content = image.to_openai_format()
+            # Log image format for debugging
+            if image.base64:
+                base64_preview = image.base64[:50] if len(image.base64) > 50 else image.base64
+                logger.info(f"[Image Format] Image {idx + 1}: base64 length={len(image.base64)}, preview={base64_preview}...")
+                # Check if base64 has proper format
+                if not image.base64.startswith('data:image/'):
+                    logger.warning(f"[Image Format] Image {idx + 1}: base64 missing data URI prefix, will be auto-added")
             user_content.append(image_content)
         except Exception as e:
-            print(f"Warning: Failed to process image: {str(e)}")
+            logger.error(f"[Image Format] Failed to process image {idx + 1}: {str(e)}", exc_info=True)
             continue
     
     # 如果没有任何内容，添加默认文本
@@ -111,11 +130,17 @@ def _build_openai_messages(user_text: str, images: List[Image], system_prompt: s
     
     return messages
 
-def _convert_simple_to_full_response(simple_response: SimplePlannerResponse, session_id: str) -> PlannerResponse:
-    """将SimplePlannerResponse转换为完整的PlannerResponse，将简单数字ID转换为完整格式"""
+def _convert_simple_to_full_response(simple_response: SimplePlannerResponse, session_id: str, goal_sequence: int) -> PlannerResponse:
+    """将SimplePlannerResponse转换为完整的PlannerResponse，将简单数字ID转换为完整格式
     
-    # 1. 生成Goal ID（SimplePlannerResponse没有goal_id字段，总是生成新的）
-    goal_id = new_goal_id(session_id, 1)
+    Args:
+        simple_response: 简单响应对象
+        session_id: 会话ID
+        goal_sequence: Goal序列号（从1开始）
+    """
+    
+    # 1. 生成Goal ID（使用传入的序列号）
+    goal_id = new_goal_id(session_id, goal_sequence)
     
     # 2. 创建简单ID到完整ID的映射
     simple_to_full_mapping = {}  # 简单ID -> 完整ID 的映射
@@ -170,10 +195,12 @@ async def plan_async(event_batch: EventBatch) -> dict:
     try:
 
         # 2. 生成系统提示词 - KISS原则：让 system_prompt 内部调用 context + manual
+        logger.info("Generating planner context...")
         planner_system_prompt = await generate_planner_system_prompt(event_batch)
 
         # 4. 调用OpenAI获取计划，直接返回PlannerResponse
-        planner_response = await _call_openai_for_plan(event_batch.events, planner_system_prompt, event_batch.session_id)
+        seq = _next_goal_sequence(event_batch.session_id)
+        planner_response = await _call_openai_for_plan(event_batch.events, planner_system_prompt, event_batch.session_id, seq)
         
         # 6. 返回PlannerResponse（立即对话 + 计划）
         return {
@@ -189,8 +216,9 @@ async def plan_async(event_batch: EventBatch) -> dict:
         error_details = f"Error in planner: {str(e)}\nTraceback: {traceback.format_exc()}"
         print(error_details)
         
-        # 返回错误响应
-        fallback_goal_id = new_goal_id(event_batch.session_id, 1)
+        # 返回错误响应（使用内部序列号）
+        seq = _next_goal_sequence(event_batch.session_id)
+        fallback_goal_id = new_goal_id(event_batch.session_id, seq)
         return {
             "planner_response": PlannerResponse(
                 session_id=event_batch.session_id,
@@ -206,7 +234,7 @@ async def plan_async(event_batch: EventBatch) -> dict:
             }
         }
 
-async def _call_openai_for_plan(events, system_prompt: str, session_id: str) -> PlannerResponse:
+async def _call_openai_for_plan(events, system_prompt: str, session_id: str, goal_sequence: int) -> PlannerResponse:
     """调用 OpenAI，要求严格按 PlannerResponse 的 JSON Schema 返回，支持多模态输入。"""
 
     # 组装用户文本
@@ -235,43 +263,77 @@ async def _call_openai_for_plan(events, system_prompt: str, session_id: str) -> 
     # 构建消息（支持多模态）
     messages = _build_openai_messages(user_text, images, system_prompt)
     
-    try:
-        # 选择合适的模型 - 如果有图片使用vision模型
-        model = "gpt-4o" if images else "gpt-4o"
-        
-        # 调用OpenAI API
-        response = await openai_client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.2,       # 降低随意性，利于结构稳定
-            max_tokens=1800,
-            response_format=get_planner_response_schema(strict=False),  # 使用兼容模式避免strict mode问题
-            seed=7                 # 可复现（可按需移除）
-        )
+    MAX_RETRIES = 3
+    
+    for attempt in range(MAX_RETRIES):
+        try:
+            # 选择合适的模型 - 如果有图片使用vision模型
+            model = "gpt-5-mini" if images else "gpt-5-mini"
+            
+            if attempt > 0:
+                logger.info(f"Retrying planning (Attempt {attempt + 1}/{MAX_RETRIES})...")
+            
+            # 调用OpenAI API
+            # Note: reasoning parameter is only available in /v1/responses endpoint, not in /v1/chat/completions
+            # If you need reasoning, consider switching to Responses API when SDK supports it
+            response = await openai_client.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_completion_tokens=8000,
+                response_format=get_planner_response_schema(strict=False),  # 使用兼容模式避免strict mode问题
+            )
 
-        content = response.choices[0].message.content  # 严格模式下应为合法 JSON 字符串
-        data = json.loads(content)
+            logger.info("Planner LLM response received.")
 
-        # 解析为SimplePlannerResponse
-        simple_response = SimplePlannerResponse.model_validate(data)
-        
-        # 转换为完整的PlannerResponse，自动生成所有ID
-        return _convert_simple_to_full_response(simple_response, session_id)
+            choice = response.choices[0]
+            
+            # 检查 finish_reason
+            if choice.finish_reason != "stop":
+                logger.warning(f"OpenAI finish_reason: {choice.finish_reason}, may indicate incomplete response")
+                if choice.finish_reason == "length":
+                    # Log token usage details
+                    if hasattr(response, 'usage'):
+                        usage = response.usage
+                        logger.error(f"Token limit reached. Usage: completion_tokens={usage.completion_tokens}, "
+                                   f"reasoning_tokens={getattr(usage.completion_tokens_details, 'reasoning_tokens', 'N/A') if hasattr(usage, 'completion_tokens_details') else 'N/A'}")
+            
+            content = choice.message.content  # 严格模式下应为合法 JSON 字符串
+            
+            # 调试：检查内容是否为空
+            if not content:
+                logger.error(f"OpenAI returned empty content. Response: {response}")
+                logger.error(f"Finish reason: {choice.finish_reason}")
+                if choice.finish_reason == "length":
+                    logger.error("All tokens were used for reasoning, none left for output. Consider increasing max_completion_tokens.")
+                raise ValueError(f"OpenAI API returned empty content (finish_reason: {choice.finish_reason})")
+            
+            # 调试：记录实际返回的内容（前500字符）
+            logger.debug(f"OpenAI response content (first 500 chars): {content[:500]}")
+            
+            try:
+                data = json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON. Error: {e}")
+                logger.error(f"Content (first 1000 chars): {content[:1000]}")
+                raise ValueError(f"Invalid JSON response from OpenAI: {e}") from e
 
-    except Exception as e:
-        import traceback
-        error_details = f"OpenAI call failed: {str(e)}\nTraceback: {traceback.format_exc()}"
-        print(error_details)
-        
-        # 兜底：若出现意外（比如网络/解析异常），返回一个安全的空计划
-        fallback_goal_id = new_goal_id(session_id, 1)
-        return PlannerResponse(
-            session_id=session_id,
-            goal_id=fallback_goal_id,
-            goal_label="Planner fallback due to error",
-            talk_to_player="I'm having a brief issue planning; I'll try a simpler approach this turn.",
-            plan=[]
-        )
+            # 解析为SimplePlannerResponse
+            simple_response = SimplePlannerResponse.model_validate(data)
+            
+            # 转换为完整的PlannerResponse，自动生成所有ID
+            return _convert_simple_to_full_response(simple_response, session_id, goal_sequence)
+
+        except (ValidationError, json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Validation Error or JSON Error: {e}")
+            if attempt < MAX_RETRIES - 1:
+                logger.info("Retrying...")
+                continue
+            else:
+                logger.error("Max retries reached for validation errors.")
+                raise e
+
+    # Should not reach here if raise e is called
+    raise ValueError("Planning failed after max retries")
 
 # 同步包装器，供外部调用
 def plan(event_batch) -> dict:

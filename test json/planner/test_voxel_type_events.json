@@ -16,7 +16,7 @@
     },
     {
       "timestamp": "150401",
-      "type": "voxel_type_modified",
+      "type": "voxel_type_updated",
       "payload": {
         "voxel_id": "new_voxel_001",
         "old_voxel_type": {
@@ -37,22 +37,48 @@
     },
     {
       "timestamp": "150402",
+      "type": "voxel_type_updated",
+      "payload": {
+        "voxel_id": "new_voxel_002",
+        "old_voxel_type": {
+          "id": "new_voxel_002",
+          "name": "Temporary Voxel",
+          "description": "A temporary voxel to be deleted",
+          "texture": "temp_texture.png",
+          "face_textures": ["", "", "", "", "", ""]
+        },
+        "new_voxel_type": null
+      }
+    },
+    {
+      "timestamp": "150403",
       "type": "player_build",
       "payload": {
-        "voxel_instance": {
-          "voxel_id": "new_voxel_001",
-          "voxel_name": "Updated Test Voxel",
-          "position": {
-            "x": 1,
-            "y": 0,
-            "z": 0
+        "voxel_instances": [
+          {
+            "voxel_id": "16",
+            "voxel_name": "Updated Test Voxel",
+            "position": {
+              "x": 1,
+              "y": 0,
+              "z": 0
+            }
+          },
+          {
+            "voxel_id": "0",
+            "voxel_name": "air",
+            "position": {
+              "x": 2,
+              "y": 0,
+              "z": 0
+            }
           }
-        }
+        ]
       }
     }
   ],
   "game_state": {
-    "timestamp": "150402",
+    "timestamp": "150403",
     "player_abs_position": {
       "x": 8,
       "y": 4,

@@ -56,8 +56,32 @@ def ensure_solid_color_texture(rgb: Tuple[int, int, int], size: int = 16) -> str
     return filename
 
 def ensure_solid_color_texture_from_name(filename: str, size: int = 16) -> str:
-    """根据文件名解析颜色并确保对应纯色 PNG 存在，返回规范化文件名（R+G+B.png）。"""
+    """根据文件名解析颜色并确保对应纯色 PNG 存在，返回规范化文件名（R+G+B.png）。
+    
+    这个函数会实际生成纹理文件。
+    """
     rgb = _filename_to_rgb(filename)
     return ensure_solid_color_texture(rgb, size=size)
+
+def normalize_texture_name(filename: str) -> str:
+    """只规范化纹理文件名，不生成文件。
+    
+    如果输入是颜色命名（如 "128+192+255.png"），返回规范化格式。
+    如果是自定义命名（如 "texture-123.png"），直接返回原样。
+    
+    Args:
+        filename: 原始纹理文件名
+        
+    Returns:
+        str: 规范化后的纹理文件名
+    """
+    try:
+        # 尝试解析为颜色格式
+        rgb = _filename_to_rgb(filename)
+        # 如果解析成功，返回规范化格式
+        return _rgb_to_filename(rgb)
+    except ValueError:
+        # 如果不是颜色格式，直接返回原样
+        return filename
 
 

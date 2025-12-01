@@ -7,13 +7,12 @@ Executor - 将批准的计划转换为具体的执行命令
 from typing import List, Dict, Any, Optional
 from core.models.base import Plan, Command, GenerateTextureParams, VoxelType, CreateVoxelTypeParams, UpdateVoxelTypeParams
 from core.models.protocol import PlanPermission, CommandBatch, SimpleExecutorResponse
+from pydantic import ValidationError
 from core.models.texture import VoxelFace, TextureJobRequest
 from core.prompts.system_prompt import generate_executor_system_prompt
 from core.schemas.openai_schemas import get_executor_response_schema
 from core.tools.id_generator import new_command_id
 from core.tools.texture.texture_generator import TextureGenerator
-from core.tools.voxel.manager import VoxelManager
-from core.tools.config import get_paths_config
 import json
 import asyncio
 from openai import AsyncOpenAI
@@ -29,11 +28,10 @@ logger = logging.getLogger(__name__)
 # 延迟初始化全局变量（避免导入时的环境变量问题）
 openai_client = None
 texture_generator = None
-voxel_manager: Optional[VoxelManager] = None
 
 def _ensure_initialized():
     """确保全局变量已初始化"""
-    global openai_client, texture_generator, voxel_manager
+    global openai_client, texture_generator
     if openai_client is None:
         api_key = os.getenv("OPENAI_API_KEY")
         
@@ -44,10 +42,6 @@ def _ensure_initialized():
     
     if texture_generator is None:
         texture_generator = TextureGenerator()
-    
-    if voxel_manager is None:
-        cfg = get_paths_config()
-        voxel_manager = VoxelManager(cfg.voxel_db_path)
 
 class Executor:
     """执行器 - 将计划转换为具体命令，使用OpenAI API生成智能化的命令参数"""
@@ -86,6 +80,7 @@ class Executor:
         
         try:
             # 1. 生成系统提示词
+            logger.info("Generating executor context...")
             system_prompt = await generate_executor_system_prompt(permission)
             
             # 2. 调用OpenAI获取命令
@@ -121,120 +116,86 @@ class Executor:
             {"role": "user", "content": user_message}
         ]
         
-        try:
-            # 调用OpenAI API
-            response = await openai_client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages,
-                temperature=0.1,       # 较低温度，确保输出稳定
-                max_tokens=2000,
-                response_format=get_executor_response_schema(strict=False),
-                seed=42                # 可复现性
-            )
+        MAX_RETRIES = 3
+        
+        for attempt in range(MAX_RETRIES):
+            try:
+                if attempt > 0:
+                    logger.info(f"Retrying OpenAI call (Attempt {attempt + 1}/{MAX_RETRIES})...")
+                
+                # 调用OpenAI API
+                # Note: reasoning parameter is only available in /v1/responses endpoint, not in /v1/chat/completions
+                # If you need reasoning, consider switching to Responses API when SDK supports it
+                response = await openai_client.chat.completions.create(
+                    model="gpt-5-mini",
+                    messages=messages,
+                    max_completion_tokens=8000,
+                    response_format=get_executor_response_schema(strict=False),
+                )
+                
+                logger.info("Executor LLM response received.")
 
-            content = response.choices[0].message.content
-            data = json.loads(content)
-            
-            # 解析SimpleExecutorResponse
-            simple_response = SimpleExecutorResponse(**data)
-            
-            # 转换为完整的Command列表，生成命令ID
-            commands = []
-            for i, cmd_data in enumerate(simple_response.commands):
-                try:
-                    # 生成命令ID
-                    command_id = new_command_id(permission.goal_id, i + 1)
-                    
-                    # 创建Command对象
-                    command = Command(
-                        id=command_id,
-                        type=cmd_data.type,
-                        params=cmd_data.params
-                    )
-                    
-                    # 弃用：如果是纹理生成命令，直接执行纹理生成
-                    #if command.type == "generate_texture":
-                    #    await self._handle_texture_generation_command(command)
-                    
-                    # 体素类型：创建
-                    if command.type == "create_voxel_type":
-                        await self._handle_create_voxel_type_command(command)
-                    
-                    # 体素类型：更新
-                    elif command.type == "update_voxel_type":
-                        await self._handle_update_voxel_type_command(command)
+                content = response.choices[0].message.content
+                data = json.loads(content)
+                
+                # 解析SimpleExecutorResponse
+                simple_response = SimpleExecutorResponse(**data)
+                
+                # 转换为完整的Command列表，生成命令ID
+                commands = []
+                for i, cmd_data in enumerate(simple_response.commands):
+                    try:
+                        # 生成命令ID
+                        command_id = new_command_id(permission.goal_id, i + 1)
+                        
+                        # 创建Command对象
+                        command = Command(
+                            id=command_id,
+                            type=cmd_data.type,
+                            params=cmd_data.params
+                        )
+                        
+                        # 弃用：如果是纹理生成命令，直接执行纹理生成
+                        #if command.type == "generate_texture":
+                        #    await self._handle_texture_generation_command(command)
+                        
+                        # Note: create_voxel_type and update_voxel_type commands are sent to Unity as-is.
+                        # Python executor does NOT modify voxel definitions - Unity handles all voxel modifications.
+                        # The commands are just instructions, not direct database operations.
 
-                    # 参数富化：为place/destroy补全voxel_id等
-                    await self._enrich_command_params(command)
-                    
-                    commands.append(command)
-                    logger.info(f"Generated command {command.id} of type {command.type}")
-                except Exception as e:
-                    logger.error(f"Failed to parse command: {str(e)}")
+                        # 参数富化：为place/destroy补全voxel_id等（使用Unity传来的voxel_definitions）
+                        await self._enrich_command_params(command, permission.game_state)
+                        
+                        commands.append(command)
+                        logger.info(f"Generated command {command.id} of type {command.type}")
+                    except Exception as e:
+                        logger.error(f"Failed to parse command: {str(e)}")
+                        continue
+                
+                return commands
+
+            except (ValidationError, json.JSONDecodeError) as e:
+                logger.warning(f"Validation Error or JSON Error: {e}")
+                if attempt < MAX_RETRIES - 1:
+                    logger.info("Retrying...")
                     continue
-            
-            return commands
-
-        except Exception as e:
-            import traceback
-            error_details = f"OpenAI call failed: {str(e)}\nTraceback: {traceback.format_exc()}"
-            logger.error(error_details)
-            
-            # 兜底：返回空命令列表
-            return []
+                else:
+                    logger.error("Max retries reached for validation errors.")
+                    raise e
+            except Exception as e:
+                import traceback
+                error_details = f"OpenAI call failed: {str(e)}\nTraceback: {traceback.format_exc()}"
+                logger.error(error_details)
+                
+                # 兜底：返回空命令列表
+                return []
+        
+        return []
         
 
-    async def _handle_create_voxel_type_command(self, command: Command):
-        """处理创建体素类型命令：调用 VoxelManager.create_voxel"""
-        try:
-            _ensure_initialized()
-            if not isinstance(command.params, CreateVoxelTypeParams):
-                if isinstance(command.params, dict):
-                    # 允许直接传完整 voxel_type 字典
-                    voxel_type_data = command.params.get("voxel_type", command.params)
-                    
-                    # 如果没有id，生成一个基于名称的id
-                    if "id" not in voxel_type_data and "name" in voxel_type_data:
-                        voxel_type_data["id"] = voxel_type_data["name"].lower().replace(" ", "_")
-                    
-                    params = CreateVoxelTypeParams(voxel_type=VoxelType(**voxel_type_data))
-                else:
-                    logger.error(f"Invalid params type for create_voxel_type: {type(command.params)}")
-                    return
-            else:
-                params = command.params
-
-            assert voxel_manager is not None
-            result = await voxel_manager.create_voxel(params)
-            # 仅保留最终结果，避免重复回显原始params
-            command.params = {"params": result}
-        except Exception as e:
-            logger.error(f"Error in create_voxel_type command {command.id}: {str(e)}", exc_info=True)
-
-    async def _handle_update_voxel_type_command(self, command: Command):
-        """处理更新体素类型命令：调用 VoxelManager.modify_voxel"""
-        try:
-            _ensure_initialized()
-            if not isinstance(command.params, UpdateVoxelTypeParams):
-                if isinstance(command.params, dict):
-                    voxel_id = command.params.get("voxel_id")
-                    new_voxel_type = command.params.get("new_voxel_type") or command.params.get("voxel_type")
-                    if voxel_id is None or new_voxel_type is None:
-                        logger.error("update_voxel_type requires 'voxel_id' and 'new_voxel_type'")
-                        return
-                    params = UpdateVoxelTypeParams(voxel_id=str(voxel_id), new_voxel_type=VoxelType(**new_voxel_type))
-                else:
-                    logger.error(f"Invalid params type for update_voxel_type: {type(command.params)}")
-                    return
-            else:
-                params = command.params
-
-            assert voxel_manager is not None
-            result = await voxel_manager.modify_voxel(params)
-            if isinstance(command.params, dict):
-                command.params["result"] = result
-        except Exception as e:
-            logger.error(f"Error in update_voxel_type command {command.id}: {str(e)}", exc_info=True)
+    # Removed: _handle_create_voxel_type_command and _handle_update_voxel_type_command
+    # Python executor should NOT modify voxel definitions - Unity handles all voxel modifications.
+    # Commands are just instructions sent to Unity, not direct database operations.
     
     def _sort_plans_by_dependency(self, plans: List[Plan]) -> List[Plan]:
         """根据依赖关系对计划进行拓扑排序"""
@@ -245,14 +206,15 @@ class Executor:
         # 更复杂的依赖排序可以后续优化
         return no_deps + with_deps
 
-    async def _enrich_command_params(self, command: Command) -> None:
-        """为命令参数做补全和规范化，例如根据名称补全voxel_id。"""
+    async def _enrich_command_params(self, command: Command, game_state=None) -> None:
+        """为命令参数做补全和规范化，例如根据名称补全voxel_id。
+        
+        优先使用Unity传来的voxel_definitions，确保id和name的一致性。
+        """
         try:
             if command.type not in ("place_block", "destroy_block"):
                 return
-            _ensure_initialized()
-            assert voxel_manager is not None
-
+            
             # 统一使用可变字典进行处理
             params_obj = command.params
             if not isinstance(params_obj, dict):
@@ -262,17 +224,35 @@ class Executor:
                 except Exception:
                     return
 
+            # 使用Unity传来的voxel_definitions（Unity应该总是提供）
+            voxel_definitions = None
+            if game_state and game_state.voxel_definitions:
+                voxel_definitions = game_state.voxel_definitions
+            else:
+                logger.warning("No voxel definitions available from Unity game_state for enrichment")
+                return
+
+            if not voxel_definitions:
+                logger.warning("No voxel definitions available for enrichment")
+                return
+
+            # 构建name->id映射
+            name_to_id_map = {}
+            for voxel in voxel_definitions:
+                if isinstance(voxel, dict):
+                    name = voxel.get('name', '').lower()
+                    voxel_id = voxel.get('id')
+                    if name and voxel_id is not None:
+                        name_to_id_map[name] = str(voxel_id)
+
             # place_block: voxel_name -> voxel_id
             if command.type == "place_block":
                 voxel_name = params_obj.get("voxel_name")
                 voxel_id = params_obj.get("voxel_id")
                 if voxel_name and (voxel_id is None or voxel_id == "" or voxel_id == 0):
-                    try:
-                        voxel = await voxel_manager.get_voxel_by_name(str(voxel_name))
-                        if voxel and "id" in voxel:
-                            params_obj["voxel_id"] = str(voxel["id"])
-                    except Exception:
-                        pass
+                    voxel_name_lower = str(voxel_name).lower()
+                    if voxel_name_lower in name_to_id_map:
+                        params_obj["voxel_id"] = name_to_id_map[voxel_name_lower]
 
                 # 确保count默认值
                 if "count" not in params_obj or not params_obj["count"]:
@@ -285,12 +265,9 @@ class Executor:
                 if isinstance(voxel_names, list) and (not isinstance(voxel_ids, list) or len(voxel_ids) == 0):
                     resolved_ids: List[str] = []
                     for name in voxel_names:
-                        try:
-                            voxel = await voxel_manager.get_voxel_by_name(str(name))
-                            if voxel and "id" in voxel:
-                                resolved_ids.append(str(voxel["id"]))
-                        except Exception:
-                            continue
+                        name_lower = str(name).lower()
+                        if name_lower in name_to_id_map:
+                            resolved_ids.append(name_to_id_map[name_lower])
                     if resolved_ids:
                         params_obj["voxel_ids"] = resolved_ids
 
