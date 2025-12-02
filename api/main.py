@@ -1,6 +1,7 @@
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import logging
+import json
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -203,6 +204,15 @@ async def handle_plan_permission(permission: PlanPermission):
         logger.info(f"Received plan permission for session {permission.session_id}")
         logger.info(f"Goal: {permission.goal_label}")
         logger.info(f"Approved plans: {len(permission.approved_plans)}")
+        
+        # Log payload (omit heavy game_state to keep terminal output concise)
+        permission_payload = permission.dict()
+        if permission_payload.get("game_state") is not None:
+            permission_payload["game_state"] = "[omitted]"
+        logger.info(
+            "Plan permission payload (no game_state):\n%s",
+            json.dumps(permission_payload, ensure_ascii=False, indent=2),
+        )
         
         # 处理计划许可，注册到会话管理器
         session_manager.process_plan_permission(permission)

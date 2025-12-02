@@ -77,6 +77,43 @@ class Executor:
         
         # 确保所有全局变量已初始化
         _ensure_initialized()
+
+        # 没有批准的计划时，根据是否有 additional_info 决定行为
+        if not permission.approved_plans:
+            if permission.additional_info:
+                # 玩家提供了反馈，生成 continue_plan 命令让 planner 重新规划
+                logger.info(
+                    "No approved plans for goal '%s', but player provided feedback. Generating continue_plan command.",
+                    permission.goal_label,
+                )
+                logger.info("Player feedback: %s", permission.additional_info)
+                
+                from core.models.base import ContinuePlanParams
+                continue_cmd = Command(
+                    id=new_command_id(permission.goal_id, 1),
+                    type="continue_plan",
+                    params=ContinuePlanParams(
+                        current_summary=f"Player rejected all plans for '{permission.goal_label}'.",
+                        possible_next_steps=permission.additional_info,
+                        request_snapshot=False
+                    )
+                )
+                return CommandBatch(
+                    session_id=permission.session_id,
+                    goal_id=permission.goal_id,
+                    commands=[continue_cmd]
+                )
+            else:
+                # 没有反馈，直接返回空命令
+                logger.info(
+                    "No approved plans for goal '%s' and no feedback. Returning empty command batch.",
+                    permission.goal_label,
+                )
+                return CommandBatch(
+                    session_id=permission.session_id,
+                    goal_id=permission.goal_id,
+                    commands=[]
+                )
         
         try:
             # 1. 生成系统提示词
