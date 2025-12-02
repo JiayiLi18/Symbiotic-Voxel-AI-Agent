@@ -6,3 +6,5 @@ langchain_text_splitters
 pypdf
 Pillow
 requests
+fastapi
+uvicorn[standard]
