@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Union
 
 from core.models.session import SessionState, Message, MessageType
 from core.models.protocol import EventBatch
-from core.models.base import Event, PlayerSpeakPayload, PlayerBuildPayload, VoxelTypeCreatedPayload, VoxelTypeUpdatedPayload, AgentContinuePlanPayload, AgentPerceptionPayload
+from core.models.base import Event, PlayerSpeakPayload, PlayerBuildPayload, VoxelTypeCreatedPayload, VoxelTypeUpdatedPayload, AgentContinuePlanPayload, AgentPerceptionPayload, Position
 from core.models.protocol import PlanCommandRegistry
 
 
@@ -53,11 +53,12 @@ class SessionDataConverter:
         return event.type in meaningful_events
     
     @staticmethod
-    def format_event_message(event: Event) -> tuple[str, Optional[Dict]]:
+    def format_event_message(event: Event, agent_abs_position: Optional[Position] = None) -> tuple[str, Optional[Dict]]:
         """格式化事件为消息内容和载荷
         
         Args:
             event: 事件对象
+            agent_abs_position: Agent的绝对坐标，用于计算相对位置（玩家建造）
             
         Returns:
             (content, payload) 元组
@@ -68,15 +69,40 @@ class SessionDataConverter:
                 operations = []
                 for voxel_instance in event.payload.voxel_instances:
                     pos = voxel_instance.position
+                    rel_pos = None
+                    if isinstance(agent_abs_position, Position):
+                        rel_pos = (
+                            pos.x - agent_abs_position.x,
+                            pos.y - agent_abs_position.y,
+                            pos.z - agent_abs_position.z,
+                        )
                     if voxel_instance.voxel_id == "0" and voxel_instance.voxel_name == "air":
-                        operations.append(f"deleted at ({pos.x}, {pos.y}, {pos.z})")
+                        if rel_pos:
+                            operations.append(f"deleted at rel ({rel_pos[0]}, {rel_pos[1]}, {rel_pos[2]})")
+                        else:
+                            operations.append(f"deleted at ({pos.x}, {pos.y}, {pos.z})")
                     else:
-                        operations.append(f"placed {voxel_instance.voxel_name} at ({pos.x}, {pos.y}, {pos.z})")
+                        if rel_pos:
+                            operations.append(f"placed {voxel_instance.voxel_name} at rel ({rel_pos[0]}, {rel_pos[1]}, {rel_pos[2]})")
+                        else:
+                            operations.append(f"placed {voxel_instance.voxel_name} at ({pos.x}, {pos.y}, {pos.z})")
                 
                 content = f"Player: {', '.join(operations)}"
                 payload = {
                     "operation_count": len(event.payload.voxel_instances),
-                    "operations": [{"voxel_name": vi.voxel_name, "voxel_id": vi.voxel_id, "position": [vi.position.x, vi.position.y, vi.position.z]} for vi in event.payload.voxel_instances]
+                    "operations": [
+                        {
+                            "voxel_name": vi.voxel_name,
+                            "voxel_id": vi.voxel_id,
+                            "position_abs": [vi.position.x, vi.position.y, vi.position.z],
+                            "position_rel": [
+                                vi.position.x - agent_abs_position.x,
+                                vi.position.y - agent_abs_position.y,
+                                vi.position.z - agent_abs_position.z,
+                            ] if isinstance(agent_abs_position, Position) else None,
+                        }
+                        for vi in event.payload.voxel_instances
+                    ]
                 }
             else:
                 content = "Player placed a block"
@@ -227,7 +253,10 @@ class SessionDataConverter:
         # 2. 处理有意义的玩家事件
         for event in event_batch.events:
             if cls.should_include_event(event):
-                content, payload = cls.format_event_message(event)
+                agent_abs_position = None
+                if event_batch.game_state and event_batch.game_state.agent_abs_position:
+                    agent_abs_position = event_batch.game_state.agent_abs_position
+                content, payload = cls.format_event_message(event, agent_abs_position)
                 session_state.add_message(
                     role="player",
                     content=content,

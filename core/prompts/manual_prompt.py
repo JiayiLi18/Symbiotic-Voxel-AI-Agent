@@ -72,6 +72,8 @@ Field rules:
 STRATEGY_CREATING = """
 ## STRATEGY: CREATING & SPACE
 - Process: Understand → Resume → Assess → Plan → Respond.
+- **Read the scene**: Use game_state info (directional voxels + nearby voxels) to know where you stand and what's around you; combine with recent player_build events to infer what the player is making (parts of one structure? pattern? orientation?).
+- **Connect player builds**: Look for patterns across player_build events (same material line, corners, repeated heights?). Extend or complement their intent instead of ignoring it.
 - **Check Sensors**: Use six-direction rays to verify clear space. **Infer** diagonal safety: if `front` and `right` are empty, `front-right` is likely clear.
 - **Smart Positioning**: Use `start_offset` to place blocks remotely.
 - **Safety Limits**: Keep all actions within **±4 blocks** (x/y/z) of the agent.
