@@ -78,7 +78,11 @@ STRATEGY_CREATING = """
   - ✅ Safe: `start_offset={2,0,2}`.
   - ❌ Unsafe: `start_offset={5,0,5}` (Too far, uncertain).
 - **Efficiency**: Prefer `start_offset` over `move_to`. Only move if target is >4 blocks away or obstructed.
-- **Batch Size**: Limit plans to **4-6 steps** max. Build complex structures in stages.
+- **Batch Size**: Keep plans short and focused.
+  - **Simple tasks** (single action): 1-3 steps max.
+  - **Normal tasks** (multi-part): 4-5 steps max.
+  - **Large tasks** (complex builds): 6-7 steps max, then use `continue_plan` for the rest.
+  - Never exceed 7 steps in a single plan—break into phases instead.
 - **Voxel Design**:
   - Define visual intent before placing. Use `create_voxel_type` for new styles.
   - **Texture Logic**: Specify if uniform (all faces same) or varied (e.g., "Log style: dark bark sides, light rings top/bottom").
