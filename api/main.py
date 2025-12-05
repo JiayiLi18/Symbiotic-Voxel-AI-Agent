@@ -8,11 +8,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from core.models.protocol import EventBatch, CommandBatch, PlannerTestResponse, PlannerResponse
-from core.models.texture import TextureJobRequest
 from core.models.session import SessionClearRequest, SessionAck, MessageType
 from core.models.protocol import PlanPermission
 from core.tools.session import SessionTool
-from core.tools.texture.texture_generator import TextureGenerator
 from core.tools.planner import plan_async
 from core.tools.executor import executor
 
@@ -36,7 +34,6 @@ import os
 
 # 初始化工具
 session_manager = SessionTool()
-texture_generator = TextureGenerator()
 
 @app.post("/events", response_model=PlannerResponse)
 async def handle_events(batch: EventBatch):

@@ -12,7 +12,6 @@ from core.models.texture import VoxelFace, TextureJobRequest
 from core.prompts.system_prompt import generate_executor_system_prompt
 from core.schemas.openai_schemas import get_executor_response_schema
 from core.tools.id_generator import new_command_id
-from core.tools.texture.texture_generator import TextureGenerator
 import json
 import asyncio
 from openai import AsyncOpenAI
@@ -27,11 +26,10 @@ logger = logging.getLogger(__name__)
 
 # 延迟初始化全局变量（避免导入时的环境变量问题）
 openai_client = None
-texture_generator = None
 
 def _ensure_initialized():
     """确保全局变量已初始化"""
-    global openai_client, texture_generator
+    global openai_client
     if openai_client is None:
         api_key = os.getenv("OPENAI_API_KEY")
         
@@ -39,9 +37,6 @@ def _ensure_initialized():
             raise ValueError("OPENAI_API_KEY not found. Please set it in environment or .env file")
         
         openai_client = AsyncOpenAI(api_key=api_key)
-    
-    if texture_generator is None:
-        texture_generator = TextureGenerator()
 
 class Executor:
     """执行器 - 将计划转换为具体命令，使用OpenAI API生成智能化的命令参数"""
